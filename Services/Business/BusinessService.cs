@@ -146,7 +146,6 @@ namespace Personelim.Services.Business
                 OwnerId = user.Id,
                 Latitude = request.BusinessLatitude,
                 Longitude = request.BusinessLongitude,
-                LocationName = request.LocationName,
                 
             };
 

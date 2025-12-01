@@ -76,10 +76,7 @@ namespace Personelim.Services.Invitation
                 _context.Invitations.Add(invitation);
                 await _context.SaveChangesAsync();
 
-                // --- EMAIL GÖNDERİMİ BURADA BAŞLIYOR ---
-                // Veritabanına kayıt başarılı olduktan sonra mail atıyoruz.
-                // Mail gitmese bile davetiye oluşmuş olur, hata fırlatıp işlem geri alınmaz (tercihe bağlı).
-                // fire-and-forget yapmak yerine await ile sonucunu bekleyebiliriz.
+               
                 
                 string inviterFullName = inviter.FirstName + " " + inviter.LastName; // GetFullName() metodunuz yoksa böyle, varsa onu kullanın.
                 
@@ -90,7 +87,7 @@ namespace Personelim.Services.Invitation
                     inviterFullName, 
                     invitation.Message
                 );
-                // ---------------------------------------
+               
 
                 var response = new InvitationResponse
                 {

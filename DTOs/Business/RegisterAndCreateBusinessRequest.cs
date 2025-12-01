@@ -13,7 +13,7 @@ namespace Personelim.DTOs.Business
         public int DistrictId { get; set; }
         public string Address { get; set; }
         public string? Description { get; set; }
-        public string LocationName { get; set; }
+        
 
 
         // Opsiyonel ofis bilgileri

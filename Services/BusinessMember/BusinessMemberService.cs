@@ -6,6 +6,7 @@ using Personelim.DTOs.BusinessMember;
 using Personelim.Helpers;
 using Personelim.Models;
 using Personelim.Models.Enums;
+using Personelim.Services.Email;
 
 namespace Personelim.Services.BusinessMember
 {
@@ -13,11 +14,12 @@ namespace Personelim.Services.BusinessMember
     {
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env; 
-        
-        public BusinessMemberService(AppDbContext context, IWebHostEnvironment env)
+        private readonly IEmailService _emailService;
+        public BusinessMemberService(AppDbContext context, IWebHostEnvironment env,IEmailService emailService)
         {
             _context = context;
             _env = env;
+            _emailService = emailService;
         }
         
         public async Task<ServiceResponse<List<BusinessMemberResponse>>> GetMembersByBusinessIdAsync(Guid currentUserId, Guid businessId)
@@ -407,5 +409,129 @@ public async Task<ServiceResponse<DocumentDownloadResponse>> GetDocumentFileAsyn
                 return ServiceResponse<bool>.ErrorResult("Belge silinirken hata oluştu: " + ex.Message);
             }
         }
+        public async Task<ServiceResponse<Guid>> AddEmployeeDirectlyAsync(Guid currentUserId, AddEmployeeRequest request)
+        {
+             using var transaction = await _context.Database.BeginTransactionAsync();
+             try
+             {
+                 // 1. Yetki Kontrolü
+                 var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
+                     bm.UserId == currentUserId &&
+                     bm.BusinessId == request.BusinessId &&
+                     bm.Role == UserRole.Owner &&
+                     bm.IsActive);
+
+                 if (!isOwner)
+                     return ServiceResponse<Guid>.ErrorResult("Personel ekleme yetkiniz yok.");
+
+                 // 2. İşletme Adını Çek (Mail için)
+                 var businessName = await _context.Businesses
+                     .Where(b => b.Id == request.BusinessId)
+                     .Select(b => b.Name)
+                     .FirstOrDefaultAsync();
+
+                 // 3. Kullanıcı Kontrolü
+                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+                 
+                 string temporaryPassword = null;
+                 bool isNewUser = false;
+
+                 if (user == null)
+                 {
+                     // -- SENARYO A: YENİ KULLANICI --
+                     isNewUser = true;
+                     temporaryPassword = GenerateRandomPassword();
+                     string passwordHash = BCrypt.Net.BCrypt.HashPassword(temporaryPassword);
+
+                     user = new User
+                     {
+                         Id = Guid.NewGuid(),
+                         Email = request.Email.Trim(),
+                         FirstName = request.FirstName.Trim(),
+                         LastName = request.LastName.Trim(),
+                         PasswordHash = passwordHash,
+                         CreatedAt = DateTime.UtcNow,
+                         UpdatedAt = DateTime.UtcNow
+                     };
+                     await _context.Users.AddAsync(user);
+                 }
+                 else
+                 {
+                     // -- SENARYO B: MEVCUT KULLANICI --
+                     var isAlreadyMember = await _context.BusinessMembers.AnyAsync(bm => 
+                         bm.UserId == user.Id && 
+                         bm.BusinessId == request.BusinessId && 
+                         bm.IsActive);
+
+                     if (isAlreadyMember)
+                         return ServiceResponse<Guid>.ErrorResult("Bu kullanıcı zaten ekibinizde.");
+                 }
+
+                 // 4. BusinessMember İlişkisi Kurma
+                 if (!Enum.TryParse<UserRole>(request.Role, true, out var roleEnum))
+                     roleEnum = UserRole.Employee;
+
+                 var newMember = new Models.BusinessMember
+                 {
+                     BusinessId = request.BusinessId,
+                     UserId = user.Id,
+                     Role = roleEnum,
+                     Position = request.Position,
+                     Salary = request.Salary,
+                     TCIdentityNumber = request.TCIdentityNumber,
+                     JoinedAt = DateTime.UtcNow,
+                     IsActive = true
+                 };
+
+                 await _context.BusinessMembers.AddAsync(newMember);
+                 await _context.SaveChangesAsync();
+
+                 // 5. MAİL GÖNDERİMİ (DÜZELTİLEN KISIM)
+                 bool mailSent = false;
+                 
+                 if (isNewUser)
+                 {
+                     // SendAccountCreatedEmailAsync metodunu çağırıyoruz
+                     // Parametreler: (email, isim, şifre, işletmeAdı)
+                     mailSent = await _emailService.SendAccountCreatedEmailAsync(
+                         user.Email, 
+                         user.FirstName, 
+                         temporaryPassword, 
+                         businessName
+                     );
+                 }
+                 else
+                 {
+                     // SendAddedToBusinessEmailAsync metodunu çağırıyoruz
+                     // Parametreler: (email, isim, işletmeAdı)
+                     mailSent = await _emailService.SendAddedToBusinessEmailAsync(
+                         user.Email, 
+                         user.FirstName, 
+                         businessName
+                     );
+                 }
+
+                 await transaction.CommitAsync();
+
+                 string msg = isNewUser 
+                     ? (mailSent ? "Personel oluşturuldu ve şifre mail atıldı." : $"Mail GİTMEDİ. Şifre: {temporaryPassword}")
+                     : "Mevcut kullanıcı işletmeye eklendi.";
+
+                 return ServiceResponse<Guid>.SuccessResult(newMember.Id, msg);
+             }
+             catch (Exception ex)
+             {
+                 await transaction.RollbackAsync();
+                 return ServiceResponse<Guid>.ErrorResult("Hata oluştu", ex.Message);
+             }
+        }
+
+        private string GenerateRandomPassword()
+        {
+            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+            var random = new Random();
+            return new string(Enumerable.Repeat(chars, 8).Select(s => s[random.Next(s.Length)]).ToArray());
+        }
     }
 }
+    
