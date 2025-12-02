@@ -17,8 +17,7 @@ namespace Personelim.Services.Email
             _configuration = configuration;
             _logger = logger;
         }
-
-        // --- 1. ŞİFRE SIFIRLAMA ---
+        
         public async Task<bool> SendPasswordResetCodeAsync(string email, string code, string userName)
         {
             string content = $@"
@@ -35,8 +34,7 @@ namespace Personelim.Services.Email
             var body = GetBaseHtmlTemplate("Şifre Sıfırlama", content);
             return await SendEmailBaseAsync(email, "Şifre Sıfırlama Kodu - Personelim", body);
         }
-
-        // --- 2. DAVETİYE ---
+        
         public async Task<bool> SendInvitationEmailAsync(string email, string invitationCode, string businessName, string inviterName, string message)
         {
             string messageHtml = string.IsNullOrEmpty(message) ? "" : $"<p style='font-style: italic; color: #555;'>\"{message}\"</p>";
@@ -56,8 +54,7 @@ namespace Personelim.Services.Email
             var body = GetBaseHtmlTemplate("İşletme Daveti", content);
             return await SendEmailBaseAsync(email, $"{businessName} İşletmesi İçin Davet", body);
         }
-
-        // --- 3. YENİ HESAP OLUŞTURMA ---
+        
         public async Task<bool> SendAccountCreatedEmailAsync(string email, string firstName, string plainPassword, string businessName = null)
         {
             string welcomeText = !string.IsNullOrEmpty(businessName)
@@ -89,8 +86,7 @@ namespace Personelim.Services.Email
             
             return await SendEmailBaseAsync(email, subject, body);
         }
-
-        // --- 4. MEVCUT KULLANICI EKLEME ---
+        
         public async Task<bool> SendAddedToBusinessEmailAsync(string email, string firstName, string businessName)
         {
             string content = $@"
@@ -106,13 +102,18 @@ namespace Personelim.Services.Email
             return await SendEmailBaseAsync(email, $"{businessName} İşletmesine Eklendiniz", body);
         }
 
-        // --- GÜNCELLENMİŞ MAILKIT GÖNDERİM METODU ---
+
         private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
         {
             try
             {
                 var smtpHost = _configuration["Email:SmtpHost"];
-                var smtpPort = int.Parse(_configuration["Email:SmtpPort"]);
+                int smtpPort = 465; 
+                if(!int.TryParse(_configuration["Email:SmtpPort"], out smtpPort))
+                {
+                    smtpPort = 465;
+                }
+        
                 var smtpUser = _configuration["Email:SmtpUser"];
                 var smtpPass = _configuration["Email:SmtpPass"];
                 var fromEmail = _configuration["Email:FromEmail"];
@@ -125,7 +126,17 @@ namespace Personelim.Services.Email
                 emailMessage.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
 
                 using var client = new SmtpClient();
-                await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
+        
+                
+                client.Timeout = 10000; 
+                
+        
+                var socketOptions = smtpPort == 465 
+                    ? SecureSocketOptions.SslOnConnect 
+                    : SecureSocketOptions.StartTls;
+
+                await client.ConnectAsync(smtpHost, smtpPort, socketOptions);
+        
                 await client.AuthenticateAsync(smtpUser, smtpPass);
                 await client.SendAsync(emailMessage);
                 await client.DisconnectAsync(true);
@@ -137,9 +148,7 @@ namespace Personelim.Services.Email
                 return false;
             }
         }
-
-        // --- PROFESYONEL HTML ŞABLONU (HELPER) ---
-        // Bu metot, gönderilecek içeriği standart bir çerçeve (header, footer, container) içine alır.
+    
         private string GetBaseHtmlTemplate(string title, string content)
         {
             var year = DateTime.Now.Year;
