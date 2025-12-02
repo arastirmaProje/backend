@@ -101,18 +101,13 @@ namespace Personelim.Services.Email
             var body = GetBaseHtmlTemplate("Yeni Bir Ekibe Katıldınız", content);
             return await SendEmailBaseAsync(email, $"{businessName} İşletmesine Eklendiniz", body);
         }
-
-
+        
         private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
         {
             try
             {
-                var smtpHost = _configuration["Email:SmtpHost"];
-                int smtpPort = 465; 
-                if(!int.TryParse(_configuration["Email:SmtpPort"], out smtpPort))
-                {
-                    smtpPort = 465;
-                }
+                var smtpHost = "smtp.gmail.com"; 
+                var smtpPort = 465; 
         
                 var smtpUser = _configuration["Email:SmtpUser"];
                 var smtpPass = _configuration["Email:SmtpPass"];
@@ -128,23 +123,24 @@ namespace Personelim.Services.Email
                 using var client = new SmtpClient();
         
                 
-                client.Timeout = 10000; 
+                client.Timeout = 30000; 
                 
-        
-                var socketOptions = smtpPort == 465 
-                    ? SecureSocketOptions.SslOnConnect 
-                    : SecureSocketOptions.StartTls;
-
-                await client.ConnectAsync(smtpHost, smtpPort, socketOptions);
-        
+                client.CheckCertificateRevocation = false;
+                client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+                
+                await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.SslOnConnect);
+                
                 await client.AuthenticateAsync(smtpUser, smtpPass);
+                
                 await client.SendAsync(emailMessage);
+                
                 await client.DisconnectAsync(true);
+
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Mail gönderilemedi: {Email}. Hata: {Message}", toEmail, ex.Message);
+                _logger.LogError(ex, "MAİL KİT HATASI: {Message} | Inner: {Inner}", ex.Message, ex.InnerException?.Message);
                 return false;
             }
         }
