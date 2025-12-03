@@ -2,8 +2,11 @@ using MailKit.Net.Smtp;
 using MailKit.Security; 
 using MimeKit;          
 using MimeKit.Text;     
-using System.Net; 
-using System.Net.Sockets; 
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -104,61 +107,61 @@ namespace Personelim.Services.Email
             return await SendEmailBaseAsync(email, $"{businessName} İşletmesine Eklendiniz", body);
         }
         
-        private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
+        // --- HTTP API GÖNDERİM METODU (%100 GARANTİLİ) ---
+private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
+{
+    try
+    {
+        // 1. API KEY'İ ÇEK (SMTP Şifresi olarak kaydettiğin xsmtpsib... anahtarı)
+        // Önce Render Environment'a bak, yoksa yerel config'e bak.
+        var apiKey = Environment.GetEnvironmentVariable("Email__SmtpPass") ?? _configuration["Email:SmtpPass"];
+        
+        var senderName = "Personelim";
+        var senderEmail = "furkanozkan20001@gmail.com"; // Brevo'da onaylı mailin
+
+        // 2. GÖNDERİLECEK VERİ MODELİ
+        var payload = new
         {
-            try
-            {
-                // 1. ÖNCE RENDER ORTAM DEĞİŞKENLERİNE BAK (Environment)
-                // Bu yöntem appsettings.json'ı ezerek Render'daki değeri kesin olarak alır.
-                var smtpHost = Environment.GetEnvironmentVariable("Email__SmtpHost") ?? _configuration["Email:SmtpHost"];
-                var smtpPortStr = Environment.GetEnvironmentVariable("Email__SmtpPort") ?? _configuration["Email:SmtpPort"];
-                var smtpUser = Environment.GetEnvironmentVariable("Email__SmtpUser") ?? _configuration["Email:SmtpUser"];
-                var smtpPass = Environment.GetEnvironmentVariable("Email__SmtpPass") ?? _configuration["Email:SmtpPass"];
-                var fromEmail = Environment.GetEnvironmentVariable("Email__FromEmail") ?? _configuration["Email:FromEmail"];
-                var fromName = Environment.GetEnvironmentVariable("Email__FromName") ?? _configuration["Email:FromName"];
+            sender = new { name = senderName, email = senderEmail },
+            to = new[] { new { email = toEmail } },
+            subject = subject,
+            htmlContent = htmlBody
+        };
 
-                // Port dönüşümü
-                int smtpPort = 587;
-                if (!int.TryParse(smtpPortStr, out smtpPort)) smtpPort = 587;
+        // 3. HTTP İSTEĞİ HAZIRLA
+        var jsonContent = JsonSerializer.Serialize(payload);
+        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-                // DEBUG LOG (Şifrenin kendisi değil, uzunluğunu ve ilk/son karakterini kontrol et)
-                // Bu log Render panelinde görünecek. Şifrenin doğru yüklenip yüklenmediğini anlayacağız.
-                if (!string.IsNullOrEmpty(smtpPass) && smtpPass.Length > 5)
-                {
-                    _logger.LogInformation($"SMTP Şifresi Yüklendi: Uzunluk {smtpPass.Length}, Başlangıç: {smtpPass.Substring(0, 2)}..., Bitiş: ...{smtpPass.Substring(smtpPass.Length - 2)}");
-                }
-                else
-                {
-                    _logger.LogError("KRİTİK HATA: SMTP Şifresi BOŞ veya Çok Kısa! Appsettings veya Environment okunmadı.");
-                    return false;
-                }
+        using var httpClient = new HttpClient();
+        
+        // Brevo'ya Şifreyi Göster
+        httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
+        httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-                var emailMessage = new MimeMessage();
-                emailMessage.From.Add(new MailboxAddress(fromName, fromEmail));
-                emailMessage.To.Add(new MailboxAddress(toEmail, toEmail));
-                emailMessage.Subject = subject;
-                emailMessage.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
+        // 4. İSTEĞİ POST ET (URL: SMTP değil, API)
+        var url = "https://api.brevo.com/v3/smtp/email";
+        var response = await httpClient.PostAsync(url, httpContent);
 
-                using var client = new SmtpClient();
-                
-                client.Timeout = 10000; 
-                
-                await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
-                
-                await client.AuthenticateAsync(smtpUser, smtpPass);
-                
-                await client.SendAsync(emailMessage);
-                
-                await client.DisconnectAsync(true);
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Mail gönderilemedi: {Email}. Hata: {Message}", toEmail, ex.Message);
-                return false;
-            }
+        // 5. SONUCU KONTROL ET
+        if (response.IsSuccessStatusCode)
+        {
+            _logger.LogInformation($"✅ Mail API ile başarıyla gönderildi: {toEmail}");
+            return true;
         }
+        else
+        {
+            // Hata varsa ne olduğunu okuyalım
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError($"❌ API Hatası: {response.StatusCode} - Detay: {errorBody}");
+            return false;
+        }
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "HTTP İsteği Başarısız: {Message}", ex.Message);
+        return false;
+    }
+}
     
         private string GetBaseHtmlTemplate(string title, string content)
         {
