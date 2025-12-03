@@ -18,7 +18,7 @@ namespace Personelim.Controllers
         }
 
         [HttpPost]
-        [AllowAnonymous] // Unauthorized kullanıcılar da işletme açabilir
+        [AllowAnonymous] 
         public async Task<IActionResult> CreateBusiness([FromBody] CreateBusinessRequest request)
         {
             Guid? userId = null;

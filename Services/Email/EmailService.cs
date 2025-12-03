@@ -108,12 +108,30 @@ namespace Personelim.Services.Email
         {
             try
             {
-                var smtpHost = _configuration["Email:SmtpHost"];
-                var smtpPort = int.Parse(_configuration["Email:SmtpPort"]);
-                var smtpUser = _configuration["Email:SmtpUser"];
-                var smtpPass = _configuration["Email:SmtpPass"];
-                var fromEmail = _configuration["Email:FromEmail"];
-                var fromName = _configuration["Email:FromName"];
+                // 1. ÖNCE RENDER ORTAM DEĞİŞKENLERİNE BAK (Environment)
+                // Bu yöntem appsettings.json'ı ezerek Render'daki değeri kesin olarak alır.
+                var smtpHost = Environment.GetEnvironmentVariable("Email__SmtpHost") ?? _configuration["Email:SmtpHost"];
+                var smtpPortStr = Environment.GetEnvironmentVariable("Email__SmtpPort") ?? _configuration["Email:SmtpPort"];
+                var smtpUser = Environment.GetEnvironmentVariable("Email__SmtpUser") ?? _configuration["Email:SmtpUser"];
+                var smtpPass = Environment.GetEnvironmentVariable("Email__SmtpPass") ?? _configuration["Email:SmtpPass"];
+                var fromEmail = Environment.GetEnvironmentVariable("Email__FromEmail") ?? _configuration["Email:FromEmail"];
+                var fromName = Environment.GetEnvironmentVariable("Email__FromName") ?? _configuration["Email:FromName"];
+
+                // Port dönüşümü
+                int smtpPort = 587;
+                if (!int.TryParse(smtpPortStr, out smtpPort)) smtpPort = 587;
+
+                // DEBUG LOG (Şifrenin kendisi değil, uzunluğunu ve ilk/son karakterini kontrol et)
+                // Bu log Render panelinde görünecek. Şifrenin doğru yüklenip yüklenmediğini anlayacağız.
+                if (!string.IsNullOrEmpty(smtpPass) && smtpPass.Length > 5)
+                {
+                    _logger.LogInformation($"SMTP Şifresi Yüklendi: Uzunluk {smtpPass.Length}, Başlangıç: {smtpPass.Substring(0, 2)}..., Bitiş: ...{smtpPass.Substring(smtpPass.Length - 2)}");
+                }
+                else
+                {
+                    _logger.LogError("KRİTİK HATA: SMTP Şifresi BOŞ veya Çok Kısa! Appsettings veya Environment okunmadı.");
+                    return false;
+                }
 
                 var emailMessage = new MimeMessage();
                 emailMessage.From.Add(new MailboxAddress(fromName, fromEmail));
