@@ -104,62 +104,43 @@ namespace Personelim.Services.Email
             return await SendEmailBaseAsync(email, $"{businessName} İşletmesine Eklendiniz", body);
         }
         
-  
-
-
-private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
-{
-    try
-    {
-      
-        var host = "smtp.gmail.com";
-        var port = 465;
-        
-        var smtpUser = _configuration["Email:SmtpUser"];
-        var smtpPass = _configuration["Email:SmtpPass"];
-        var fromEmail = _configuration["Email:FromEmail"];
-        var fromName = _configuration["Email:FromName"];
-
-  
-        var ipAddresses = await Dns.GetHostAddressesAsync(host);
-        var ipv4Address = ipAddresses.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork);
-
-        if (ipv4Address == null)
+        private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
         {
-            throw new Exception("Gmail SMTP sunucusu için IPv4 adresi bulunamadı.");
+            try
+            {
+                var smtpHost = _configuration["Email:SmtpHost"];
+                var smtpPort = int.Parse(_configuration["Email:SmtpPort"]);
+                var smtpUser = _configuration["Email:SmtpUser"];
+                var smtpPass = _configuration["Email:SmtpPass"];
+                var fromEmail = _configuration["Email:FromEmail"];
+                var fromName = _configuration["Email:FromName"];
+
+                var emailMessage = new MimeMessage();
+                emailMessage.From.Add(new MailboxAddress(fromName, fromEmail));
+                emailMessage.To.Add(new MailboxAddress(toEmail, toEmail));
+                emailMessage.Subject = subject;
+                emailMessage.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
+
+                using var client = new SmtpClient();
+                
+                client.Timeout = 10000; 
+                
+                await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
+                
+                await client.AuthenticateAsync(smtpUser, smtpPass);
+                
+                await client.SendAsync(emailMessage);
+                
+                await client.DisconnectAsync(true);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mail gönderilemedi: {Email}. Hata: {Message}", toEmail, ex.Message);
+                return false;
+            }
         }
-        
-        // Log alalım ki hangi IP'ye bağlandığını görelim
-        _logger.LogInformation($"GMAIL BAĞLANTISI: {host} adresi {ipv4Address} olarak çözümlendi. Bağlanılıyor...");
-
-        var emailMessage = new MimeMessage();
-        emailMessage.From.Add(new MailboxAddress(fromName, fromEmail));
-        emailMessage.To.Add(new MailboxAddress(toEmail, toEmail));
-        emailMessage.Subject = subject;
-        emailMessage.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
-
-        using var client = new SmtpClient();
-     
-        client.Timeout = 20000; 
-      
-        client.CheckCertificateRevocation = false;
-        client.ServerCertificateValidationCallback = (s, c, h, e) => true;
-
-        await client.ConnectAsync(ipv4Address.ToString(), port, SecureSocketOptions.SslOnConnect);
-        
-      
-        await client.AuthenticateAsync(smtpUser, smtpPass);
-        await client.SendAsync(emailMessage);
-        await client.DisconnectAsync(true);
-
-        return true;
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "KRİTİK HATA: Mail gönderilemedi. Hata: {Message}", ex.Message);
-        return false;
-    }
-}
     
         private string GetBaseHtmlTemplate(string title, string content)
         {
