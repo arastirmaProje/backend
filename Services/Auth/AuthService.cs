@@ -7,6 +7,7 @@ using Personelim.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Personelim.DTOs.Business;
 using Personelim.Services.Email;
 
 namespace Personelim.Services.Auth
@@ -25,6 +26,53 @@ namespace Personelim.Services.Auth
             _context = context;
             _configuration = configuration;
             _emailService = emailService;
+        }
+
+        public async Task<ServiceResponse<AuthResponse>> RegisterAsync(RegisterRequest request)
+        {
+            try
+            {
+                var emailExists = await _context.Users
+                    .AnyAsync(u => u.Email == request.Email.ToLower());
+
+                if (emailExists)
+                {
+                    return ServiceResponse<AuthResponse>.ErrorResult("Bu email adresi zaten kullanımda.");
+                }
+                
+                string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+                
+                var newUser = new User
+                {
+                    FirstName = request.firstName,
+                    LastName = request.lastName,
+                    Email = request.Email.ToLower(), 
+                    PasswordHash = passwordHash,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    LastLoginAt = DateTime.UtcNow 
+                };
+                
+                await _context.Users.AddAsync(newUser);
+                await _context.SaveChangesAsync();
+                
+                var token = GenerateJwtToken(newUser);
+                var response = new AuthResponse
+                {
+                    UserId = newUser.Id,
+                    Email = newUser.Email,
+                    FirstName = newUser.FirstName,
+                    LastName = newUser.LastName,
+                    Token = token.Token,
+                    ExpiresAt = token.ExpiresAt
+                };
+
+                return ServiceResponse<AuthResponse>.SuccessResult(response, "Kullanıcı kaydı başarıyla oluşturuldu.");
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<AuthResponse>.ErrorResult("Kayıt oluşturulurken bir hata meydana geldi.", ex.Message);
+            }
         }
 
         public async Task<ServiceResponse<AuthResponse>> LoginAsync(LoginRequest request)
@@ -53,7 +101,8 @@ namespace Personelim.Services.Auth
                 {
                     UserId = user.Id,
                     Email = user.Email,
-                    FullName = user.GetFullName(),
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
                     Token = token.Token,
                     ExpiresAt = token.ExpiresAt
                 };
@@ -86,7 +135,6 @@ namespace Personelim.Services.Auth
                     Email = user.Email,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    FullName = user.GetFullName(),
                     CreatedAt = user.CreatedAt,
                     LastLoginAt = user.LastLoginAt,
                     BusinessCount = user.BusinessMemberships.Count(bm => bm.IsActive),
@@ -148,7 +196,6 @@ namespace Personelim.Services.Auth
                     Email = user.Email,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    FullName = user.GetFullName(),
                     CreatedAt = user.CreatedAt,
                     LastLoginAt = user.LastLoginAt
                 };

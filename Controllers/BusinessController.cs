@@ -16,18 +16,26 @@ namespace Personelim.Controllers
         {
             _businessService = businessService;
         }
-
-        [HttpPost]
-        [AllowAnonymous] 
+        
+        [Authorize]
+        [HttpPost("create-business")] 
         public async Task<IActionResult> CreateBusiness([FromBody] CreateBusinessRequest request)
         {
-            Guid? userId = null;
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim != null)
-                userId = Guid.Parse(userIdClaim.Value);
+            
+            if (userIdClaim == null)
+            {
+                return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
+            }
 
-            var result = await _businessService.CreateBusinessAsync(userId, request);
-            if (!result.Success) return BadRequest(result);
+            var userId = Guid.Parse(userIdClaim.Value);
+            
+            var result = await _businessService.CreateBusinessAsync(request, userId);
+            
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
 
             return CreatedAtAction(nameof(GetBusinessById), new { businessId = result.Data.Id }, result);
         }
@@ -37,23 +45,20 @@ namespace Personelim.Controllers
         {
             Guid? userId = null;
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            
             if (userIdClaim != null)
+            {
                 userId = Guid.Parse(userIdClaim.Value);
+            }
 
             var result = await _businessService.GetBusinessByIdAsync(userId, businessId);
-            if (!result.Success) return NotFound(result);
-
+            
+            if (!result.Success)
+            {
+                return NotFound(result);
+            }
+            
             return Ok(result);
         }
-
-        [HttpPost("login-and-create")]
-        public async Task<IActionResult> LoginAndCreate([FromBody] LoginAndCreateBusinessRequest request)
-        {
-            var response = await _businessService.LoginAndCreateBusinessAsync(request);
-            if (!response.Success) return BadRequest(response);
-            return Ok(response);
-        }
-
-        
     }
 }

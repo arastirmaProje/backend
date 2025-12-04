@@ -14,61 +14,6 @@ namespace Personelim.Services.Business
             _context = context;
         }
 
-        public async Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(
-    Guid? userId, // nullable
-    CreateBusinessRequest request,
-    Guid? parentBusinessId = null)
-{
-    if (!userId.HasValue)
-        return ServiceResponse<BusinessResponse>.ErrorResult("Kullanıcı bilgisi bulunamadı.");
-
-    if (string.IsNullOrWhiteSpace(request.BusinessName))
-        return ServiceResponse<BusinessResponse>.ErrorResult("İşletme adı boş olamaz.");
-    if (string.IsNullOrWhiteSpace(request.Address))
-        return ServiceResponse<BusinessResponse>.ErrorResult("Adres boş olamaz.");
-    if (request.ProvinceId <= 0 || request.DistrictId <= 0)
-        return ServiceResponse<BusinessResponse>.ErrorResult("Geçersiz il veya ilçe bilgisi.");
-
-    var province = await _context.Provinces.FindAsync(request.ProvinceId);
-    if (province == null)
-        return ServiceResponse<BusinessResponse>.ErrorResult("Belirtilen il bulunamadı.");
-
-    var district = await _context.Districts
-        .FirstOrDefaultAsync(d => d.Id == request.DistrictId && d.ProvinceId == request.ProvinceId);
-    if (district == null)
-        return ServiceResponse<BusinessResponse>.ErrorResult("Belirtilen ilçe bulunamadı veya il ile eşleşmiyor.");
-
-    var business = new Models.Business
-    {
-        Id = Guid.NewGuid(),
-        Name = request.BusinessName.Trim(),
-        Description = request.description?.Trim(),
-        Address = request.Address.Trim(),
-        PhoneNumber = request.PhoneNumber?.Trim(),
-        ProvinceId = province.Id,
-        DistrictId = district.Id,
-        OwnerId = userId.Value, // nullable -> .Value
-        ParentBusinessId = parentBusinessId,
-        LocationName = request.OfficeName?.Trim(),
-        Latitude = request.BusinessLatitude ,
-        Longitude = request.BusinessLongitude ,
-        IsActive = true,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow
-    };
-
-    _context.Businesses.Add(business);
-    await _context.SaveChangesAsync();
-
-    return ServiceResponse<BusinessResponse>.SuccessResult(new BusinessResponse
-    {
-        Id = business.Id,
-        Name = business.Name
-    });
-}
-
-
-
         public async Task<ServiceResponse<List<BusinessResponse>>> GetUserBusinessesAsync(Guid? userId)
         {
             if (!userId.HasValue)
@@ -122,59 +67,82 @@ namespace Personelim.Services.Business
             await _context.SaveChangesAsync();
             return ServiceResponse<bool>.SuccessResult(true);
         }
-        public async Task<ServiceResponse<BusinessResponse>> LoginAndCreateBusinessAsync(LoginAndCreateBusinessRequest request)
+       public async Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(CreateBusinessRequest request, Guid userId)
+{
+    try
+    {
+        var mainBusiness = new Personelim.Models.Business
         {
-            // 1) Login
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
-
-            if (user == null || !user.IsActive)
-                return ServiceResponse<BusinessResponse>.ErrorResult("Email veya şifre hatalı");
-
-            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-                return ServiceResponse<BusinessResponse>.ErrorResult("Email veya şifre hatalı");
-
-            // 2) Şirket oluştur
-            var business = new Models.Business
+            Name = request.BusinessName,
+            
+            LocationName = string.Empty, 
+            Latitude = 0,
+            Longitude = 0,
+            
+            PhoneNumber = request.PhoneNumber,
+            ProvinceId = request.ProvinceId,
+            DistrictId = request.DistrictId,
+            Address = request.Address,
+            Description = request.Description,
+            
+            OwnerId = userId,
+            IsActive = true
+        };
+        
+        await _context.Businesses.AddAsync(mainBusiness);
+        if (request.Offices != null && request.Offices.Count > 0)
+        {
+            foreach (var officeDto in request.Offices)
             {
-                Name = request.BusinessName,
-                PhoneNumber = request.PhoneNumber,
-                ProvinceId = request.ProvinceId,
-                DistrictId = request.DistrictId,
-                Address = request.Address,
-                Description = request.Description,
-                OwnerId = user.Id,
-                Latitude = request.BusinessLatitude,
-                Longitude = request.BusinessLongitude,
+                var subBusiness = new Personelim.Models.Business
+                {
+                    LocationName = officeDto.OfficeName,
+                    Latitude = officeDto.Latitude,
+                    Longitude = officeDto.Longitude,
+
+                    // --- Zorunlu Alanların Ana Şirketten Kopyalanması ---
+                    // DB'de zorunlu olduğu için ana şirketin bilgilerini basıyoruz
+                    Name = $"{request.BusinessName} - {officeDto.OfficeName}",
+                    Address = mainBusiness.Address, 
+                    PhoneNumber = mainBusiness.PhoneNumber,
+                    ProvinceId = mainBusiness.ProvinceId,
+                    DistrictId = mainBusiness.DistrictId,
+                    Description = mainBusiness.Description,
+                    
+                    OwnerId = userId,
+                    ParentBusiness = mainBusiness, 
+                    IsActive = true
+                };
                 
-            };
-
-            await _context.Businesses.AddAsync(business);
-            await _context.SaveChangesAsync();
-
-
-            var responseDto = new BusinessResponse
-            {
-                Id = business.Id,
-                Name = business.Name,
-                PhoneNumber = business.PhoneNumber,
-                ProvinceId = business.ProvinceId,
-                DistrictId = business.DistrictId,
-                Address = business.Address,
-                Description = business.Description,
-                LocationName = business.LocationName,
-                Latitude = business.Latitude,
-                Longitude = business.Longitude,
-                
-                CreatedAt = business.CreatedAt
-            };
-
-            return ServiceResponse<BusinessResponse>.SuccessResult(responseDto, "Şirket başarıyla oluşturuldu");
-
+                mainBusiness.SubBusinesses.Add(subBusiness);
+            }
         }
+        
+        await _context.SaveChangesAsync();
 
+        var responseDto = new BusinessResponse
+        {
+            Id = mainBusiness.Id,
+            Name = mainBusiness.Name,
+            PhoneNumber = mainBusiness.PhoneNumber,
+            ProvinceId = mainBusiness.ProvinceId,
+            DistrictId = mainBusiness.DistrictId,
+            Address = mainBusiness.Address,
+            Description = mainBusiness.Description,
+            Latitude = mainBusiness.Latitude,
+            Longitude = mainBusiness.Longitude,
+            LocationName = mainBusiness.LocationName,
+            CreatedAt = mainBusiness.CreatedAt,
+        };
 
-// Şifre hash fonksiyonu
+        return ServiceResponse<BusinessResponse>.SuccessResult(responseDto, "Şirket ve ofisler başarıyla oluşturuldu.");
+    }
+    catch (Exception ex)
+    {
+        return ServiceResponse<BusinessResponse>.ErrorResult("Şirket oluşturulurken bir hata oluştu.", ex.Message);
+    }
+}
+        
         private string HashPassword(string password)
         {
             using var sha256 = System.Security.Cryptography.SHA256.Create();
@@ -182,15 +150,14 @@ namespace Personelim.Services.Business
             var hash = sha256.ComputeHash(bytes);
             return Convert.ToBase64String(hash);
         }
-
-
-        // Diğer SubBusiness metotları burada aynı mantıkla eklenebilir
+        
         public Task<ServiceResponse<List<BusinessResponse>>> GetSubBusinessesAsync(Guid? userId, Guid parentBusinessId) => throw new NotImplementedException();
         public Task<ServiceResponse<BusinessResponse>> UpdateSubBusinessAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId, UpdateBusinessRequest request) => throw new NotImplementedException();
         public Task<ServiceResponse<bool>> DeleteSubBusinessAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId) => throw new NotImplementedException();
         public Task<ServiceResponse<BusinessResponse>> GetSubBusinessByIdAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId) => throw new NotImplementedException();
         public Task<ServiceResponse<BusinessResponse>> CreateLocationAsync(Guid? userId, Guid parentBusinessId, CreateLocationRequest request) => throw new NotImplementedException();
         public Task<ServiceResponse<BusinessResponse>> UpdateSubBusinessAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId, UpdateLocationRequest request) => throw new NotImplementedException();
+       
     }
     
 }

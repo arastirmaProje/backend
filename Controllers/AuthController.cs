@@ -18,10 +18,16 @@ namespace Personelim.Controllers
             _authService = authService;
         }
 
-        /* 
-           GÜNCELLEME: Register (Kayıt Ol) endpoint'i kaldırıldı.
-           Artık kullanıcılar dışarıdan kendi kendine kayıt olamaz.
-        */
+        [HttpPost("register")]
+        public async Task<ActionResult<ServiceResponse<AuthResponse>>> Register(RegisterRequest request)
+        {
+            var result = await _authService.RegisterAsync(request);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
 
         [HttpPost("login")]
         public async Task<ActionResult<ServiceResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
