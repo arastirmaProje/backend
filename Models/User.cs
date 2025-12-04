@@ -21,6 +21,8 @@ namespace Personelim.Models
 
         public User()
         {
+            FirstName = string.Empty;
+            LastName = string.Empty;
             Id = Guid.NewGuid();
             CreatedAt = DateTime.UtcNow;
             IsActive = true;
