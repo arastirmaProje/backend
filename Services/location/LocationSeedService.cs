@@ -15,7 +15,7 @@ namespace Personelim.Services.Location
             _httpClient = httpClient;
         }
 
-        public async Task SeedLocationsAsync()
+        public async System.Threading.Tasks.Task SeedLocationsAsync()
         {
             if (_context.Provinces.Any())
             {

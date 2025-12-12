@@ -5,6 +5,7 @@ using Personelim.Helpers;
 using Personelim.Models;
 using Personelim.Models.Enums;
 using Personelim.Services.Email;
+using BCrypt.Net; // Hashleme için gerekli
 
 namespace Personelim.Services.Invitation
 {
@@ -19,11 +20,12 @@ namespace Personelim.Services.Invitation
             _emailService = emailService;
         }
 
-         public async Task<ServiceResponse<InvitationResponse>> SendInvitationAsync(Guid userId, SendInvitationRequest request)
+        public async Task<ServiceResponse<InvitationResponse>> SendInvitationAsync(Guid userId, SendInvitationRequest request)
         {
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Owner kontrolü
+                // 1. Yetki Kontrolü
                 var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == userId &&
                     bm.BusinessId == request.BusinessId &&
@@ -32,217 +34,150 @@ namespace Personelim.Services.Invitation
 
                 if (!isOwner)
                 {
-                    return ServiceResponse<InvitationResponse>.ErrorResult("Bu işletme için davetiye gönderme yetkiniz yok");
-                }
-
-                // Aktif davetiye kontrolü
-                var existingInvitation = await _context.Invitations
-                    .FirstOrDefaultAsync(i =>
-                        i.BusinessId == request.BusinessId &&
-                        i.Email == request.Email.ToLower() &&
-                        i.Status == InvitationStatus.Pending &&
-                        i.ExpiresAt > DateTime.UtcNow);
-
-                if (existingInvitation != null)
-                {
-                    return ServiceResponse<InvitationResponse>.ErrorResult("Bu email için aktif bir davetiye zaten mevcut");
-                }
-
-                // Kullanıcı zaten üye mi kontrolü...
-                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
-                if (existingUser != null)
-                {
-                    var isMember = await _context.BusinessMembers.AnyAsync(bm =>
-                        bm.UserId == existingUser.Id &&
-                        bm.BusinessId == request.BusinessId &&
-                        bm.IsActive);
-                    if (isMember)
-                    {
-                        return ServiceResponse<InvitationResponse>.ErrorResult("Bu kullanıcı zaten işletme üyesi");
-                    }
+                    return ServiceResponse<InvitationResponse>.ErrorResult("Personel ekleme yetkiniz yok.");
                 }
 
                 var business = await _context.Businesses.FindAsync(request.BusinessId);
                 var inviter = await _context.Users.FindAsync(userId);
+                var targetUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
 
-                var invitation = new Models.Invitation
+                bool isNewUser = false;
+                string generatedPassword = null; // Ham şifreyi burada tutacağız
+
+                // 2. Kullanıcı Yoksa Oluştur (Şifre Üret)
+                if (targetUser == null)
+                {
+                    isNewUser = true;
+                    // Rastgele şifre üret (EmailService'e bu gidecek)
+                    generatedPassword = GenerateRandomPassword(); 
+                    
+                    // DB'ye kaydetmek için hashle
+                    string passwordHash = BCrypt.Net.BCrypt.HashPassword(generatedPassword);
+
+                    // İsim Soyisim mailden türetme (ali.veli@gmail -> Ali Veli)
+                    string nameFromEmail = request.Email.Split('@')[0];
+                    
+                    targetUser = new User
+                    {
+                        Id = Guid.NewGuid(),
+                        Email = request.Email.ToLower(),
+                        FirstName = nameFromEmail, 
+                        LastName = "",
+                        PasswordHash = passwordHash,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                        IsActive = true
+                    };
+
+                    await _context.Users.AddAsync(targetUser);
+                }
+                else
+                {
+                    // Kullanıcı zaten varsa, bu işletmede mi diye bak
+                    var isMember = await _context.BusinessMembers.AnyAsync(bm =>
+                        bm.UserId == targetUser.Id &&
+                        bm.BusinessId == request.BusinessId &&
+                        bm.IsActive);
+
+                    if (isMember)
+                    {
+                        return ServiceResponse<InvitationResponse>.ErrorResult("Bu kullanıcı zaten personeliniz.");
+                    }
+                }
+
+                // 3. Personel Olarak Ekle
+                var member = new Models.BusinessMember
                 {
                     BusinessId = request.BusinessId,
-                    Email = request.Email.ToLower(),
+                    UserId = targetUser.Id,
+                    Role = UserRole.Employee,
+                    Position = "Personel",
+                    JoinedAt = DateTime.UtcNow,
+                    IsActive = true
+                };
+
+                await _context.BusinessMembers.AddAsync(member);
+
+                // 4. Log Amaçlı Invitation Tablosuna Yaz (Opsiyonel ama iyi olur)
+                var logEntry = new Models.Invitation
+                {
+                    BusinessId = business.Id,
+                    Email = request.Email,
                     InvitedByUserId = userId,
-                    Message = request.Message
+                    Status = InvitationStatus.Accepted, // Direkt kabul edilmiş sayıyoruz
+                    Message = request.Message ?? "Doğrudan eklendi",
+                    InvitationCode = "DIRECT-" + Guid.NewGuid().ToString().Substring(0,6),
+                    CreatedAt = DateTime.UtcNow,
+                    AcceptedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddDays(7)
                 };
+                _context.Invitations.Add(logEntry);
 
-                _context.Invitations.Add(invitation);
                 await _context.SaveChangesAsync();
 
-               
-                
-                string inviterFullName = inviter.FirstName + " " + inviter.LastName; // GetFullName() metodunuz yoksa böyle, varsa onu kullanın.
-                
-                await _emailService.SendInvitationEmailAsync(
-                    invitation.Email, 
-                    invitation.InvitationCode, 
-                    business.Name, 
-                    inviterFullName, 
-                    invitation.Message
-                );
-               
+                // 5. MAİL GÖNDERİMİ
+                // Transaction commit etmeden maili gönderelim (veya sonra)
+                bool mailSent = false;
+                string inviterName = $"{inviter.FirstName} {inviter.LastName}";
 
-                var response = new InvitationResponse
+                if (isNewUser)
                 {
-                    Id = invitation.Id,
-                    InvitationCode = invitation.InvitationCode,
-                    Email = invitation.Email,
-                    BusinessName = business.Name,
-                    InvitedByName = inviterFullName,
-                    Message = invitation.Message,
-                    ExpiresAt = invitation.ExpiresAt,
-                    CreatedAt = invitation.CreatedAt
-                };
-
-                return ServiceResponse<InvitationResponse>.SuccessResult(response, "Davetiye başarıyla gönderildi ve kullanıcıya email iletildi.");
-            }
-            catch (Exception ex)
-            {
-                return ServiceResponse<InvitationResponse>.ErrorResult("Davetiye gönderilirken hata oluştu", ex.Message);
-            }
-        }
-
-        public async Task<ServiceResponse<string>> AcceptInvitationAsync(Guid userId, string invitationCode)
-        {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var invitation = await _context.Invitations
-                    .Include(i => i.Business)
-                    .FirstOrDefaultAsync(i => i.InvitationCode == invitationCode);
-
-                if (invitation == null)
+                    // Şifre içeren maili atıyoruz
+                    mailSent = await _emailService.SendAccountCreatedEmailAsync(
+                        targetUser.Email, 
+                        targetUser.FirstName, 
+                        generatedPassword, // Ham şifreyi gönderiyoruz
+                        business.Name
+                    );
+                }
+                else
                 {
-                    return ServiceResponse<string>.ErrorResult("Davetiye bulunamadı");
+                    // Bilgilendirme maili atıyoruz
+                    mailSent = await _emailService.SendAddedToBusinessEmailAsync(
+                        targetUser.Email, 
+                        targetUser.FirstName, 
+                        business.Name
+                    );
                 }
 
-                if (!invitation.IsValid())
-                {
-                    return ServiceResponse<string>.ErrorResult("Davetiye geçersiz veya süresi dolmuş");
-                }
-
-                var user = await _context.Users.FindAsync(userId);
-                if (user.Email.ToLower() != invitation.Email.ToLower())
-                {
-                    return ServiceResponse<string>.ErrorResult("Bu davetiye sizin email adresinize gönderilmemiş");
-                }
-
-                // Zaten üye mi?
-                var isMember = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == userId &&
-                    bm.BusinessId == invitation.BusinessId &&
-                    bm.IsActive);
-
-                if (isMember)
-                {
-                    return ServiceResponse<string>.ErrorResult("Zaten bu işletmenin üyesisiniz");
-                }
-
-                // Üyelik oluştur
-                var membership = new Models.BusinessMember
-                {
-                    UserId = userId,
-                    BusinessId = invitation.BusinessId,
-                    Role = UserRole.Employee
-                };
-
-                _context.BusinessMembers.Add(membership);
-
-                // Davetiye durumunu güncelle
-                invitation.Status = InvitationStatus.Accepted;
-                invitation.AcceptedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return ServiceResponse<string>.SuccessResult(
-                    invitation.Business.Name,
-                    "Davetiye başarıyla kabul edildi"
-                );
+                string msg = isNewUser 
+                    ? "Yeni kullanıcı oluşturuldu, personellere eklendi ve şifresi mail atıldı." 
+                    : "Mevcut kullanıcı personellere eklendi ve bilgilendirildi.";
+
+                if (!mailSent) msg += " (Ancak mail gönderilirken hata oluştu)";
+
+                // Response dönüyoruz (Frontend bu veriyi kullanabilir)
+                return ServiceResponse<InvitationResponse>.SuccessResult(new InvitationResponse 
+                {
+                    Id = logEntry.Id,
+                    Email = targetUser.Email,
+                    Message = "İşlem Başarılı"
+                }, msg);
+
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                return ServiceResponse<string>.ErrorResult("Davetiye kabul edilirken hata oluştu", ex.Message);
+                return ServiceResponse<InvitationResponse>.ErrorResult("Hata oluştu: " + ex.Message);
             }
         }
 
-        public async Task<ServiceResponse<List<InvitationResponse>>> GetUserInvitationsAsync(string email)
+        // 8 Haneli Rastgele Şifre Üretici
+        private string GenerateRandomPassword()
         {
-            try
-            {
-                var invitations = await _context.Invitations
-                    .Include(i => i.Business)
-                    .Include(i => i.InvitedBy)
-                    .Where(i =>
-                        i.Email == email.ToLower() &&
-                        i.Status == InvitationStatus.Pending &&
-                        i.ExpiresAt > DateTime.UtcNow)
-                    .Select(i => new InvitationResponse
-                    {
-                        Id = i.Id,
-                        InvitationCode = i.InvitationCode,
-                        Email = i.Email,
-                        BusinessName = i.Business.Name,
-                        InvitedByName = i.InvitedBy.FirstName + " " + i.InvitedBy.LastName,
-                        Message = i.Message,
-                        ExpiresAt = i.ExpiresAt,
-                        CreatedAt = i.CreatedAt
-                    })
-                    .OrderByDescending(i => i.CreatedAt)
-                    .ToListAsync();
-
-                return ServiceResponse<List<InvitationResponse>>.SuccessResult(invitations);
-            }
-            catch (Exception ex)
-            {
-                return ServiceResponse<List<InvitationResponse>>.ErrorResult("Davetiyeler getirilirken hata oluştu", ex.Message);
-            }
+            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+            var random = new Random();
+            return new string(Enumerable.Repeat(chars, 8).Select(s => s[random.Next(s.Length)]).ToArray());
         }
-        public async Task<ServiceResponse<string>> CancelInvitationAsync(Guid userId, Guid invitationId)
+
+       
+        public Task<ServiceResponse<string>> AcceptInvitationAsync(Guid userId, string code) => throw new NotImplementedException();
+        public Task<ServiceResponse<string>> CancelInvitationAsync(Guid userId, Guid id) => throw new NotImplementedException();
+        public async Task<ServiceResponse<List<InvitationResponse>>> GetUserInvitationsAsync(string email) 
         {
-            try
-            {
-                var invitation = await _context.Invitations.FindAsync(invitationId);
-
-                if (invitation == null)
-                {
-                    return ServiceResponse<string>.ErrorResult("Davetiye bulunamadı.");
-                }
-                
-                if (invitation.Status != InvitationStatus.Pending)
-                {
-                    return ServiceResponse<string>.ErrorResult("Sadece durumu 'Beklemede' olan davetiyeler iptal edilebilir.");
-                }
-                
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == userId &&
-                    bm.BusinessId == invitation.BusinessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isOwner)
-                {
-                    return ServiceResponse<string>.ErrorResult("Bu işlemi yapmaya yetkiniz yok. Sadece işletme sahibi davet iptal edebilir.");
-                }
-                
-                invitation.Status = InvitationStatus.Cancelled;
-                
-                await _context.SaveChangesAsync();
-
-                return ServiceResponse<string>.SuccessResult(null, "Davetiye başarıyla iptal edildi. Kod artık kullanılamaz.");
-            }
-            catch (Exception ex)
-            {
-                return ServiceResponse<string>.ErrorResult("İptal işlemi sırasında hata oluştu.", ex.Message);
-            }
+            return ServiceResponse<List<InvitationResponse>>.SuccessResult(new List<InvitationResponse>());
         }
     }
 }

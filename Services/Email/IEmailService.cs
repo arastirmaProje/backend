@@ -11,5 +11,7 @@ namespace Personelim.Services.Email
         Task<bool> SendAccountCreatedEmailAsync(string email, string firstName, string plainPassword, string businessName = null);
         
         Task<bool> SendAddedToBusinessEmailAsync(string email, string firstName, string businessName);
+        Task<bool> SendBusinessVerificationCodeAsync(string email, string userName, string businessName, string code);
+        
     } 
 }

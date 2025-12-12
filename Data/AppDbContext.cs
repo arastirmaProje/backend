@@ -18,6 +18,7 @@ namespace Personelim.Data
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<MemberDocument> MemberDocuments { get; set; }
         public DbSet<MemberLeave> MemberLeaves { get; set; }
+        public DbSet<TaskItem> TaskItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -39,7 +39,28 @@ namespace Personelim.Controllers
 
             return CreatedAtAction(nameof(GetBusinessById), new { businessId = result.Data.Id }, result);
         }
+        
+        
+        [HttpPost("verify")]
+        public async Task<IActionResult> VerifyBusiness([FromBody] VerifyBusinessRequest request)
+        {
+            // Token'dan UserId'yi al (Helpers metodunuz varsa onu kullanın)
+            // Örnek: var userId = Guid.Parse(User.FindFirst("id")?.Value);
+            var userId = GetUserIdFromToken(); 
 
+            var result = await _businessService.VerifyBusinessAsync(userId, request);
+        
+            if (result.Success) return Ok(result);
+            return BadRequest(result);
+        }
+        
+        private Guid GetUserIdFromToken()
+        {
+            var idClaim = User.Claims.FirstOrDefault(c => c.Type == "uid" || c.Type == "id" || c.Type == System.Security.Claims.ClaimTypes.NameIdentifier);
+            return idClaim != null ? Guid.Parse(idClaim.Value) : Guid.Empty;
+        }
+        
+        
         [HttpGet("{businessId}")]
         public async Task<IActionResult> GetBusinessById(Guid businessId)
         {

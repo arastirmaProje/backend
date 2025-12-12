@@ -5,6 +5,8 @@ namespace Personelim.Services.Business
 {
     public interface IBusinessService
     {
+        Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, VerifyBusinessRequest request);
+    
         Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(CreateBusinessRequest request, Guid userId);
         Task<ServiceResponse<List<BusinessResponse>>> GetUserBusinessesAsync(Guid? userId);
         Task<ServiceResponse<BusinessResponse>> GetBusinessByIdAsync(Guid? userId, Guid businessId);
