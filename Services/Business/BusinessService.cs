@@ -85,11 +85,11 @@ public async Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(CreateB
             return ServiceResponse<BusinessResponse>.ErrorResult("Kullanıcı bulunamadı.");
         }
 
-        // 1. Doğrulama Kodu Üret
+      
         Random random = new Random();
         string verificationCode = random.Next(100000, 999999).ToString();
 
-        // 2. İşletmeyi PASİF (IsActive = false) olarak oluştur
+        
         var mainBusiness = new Personelim.Models.Business
         {
             Name = request.BusinessName,
@@ -197,53 +197,46 @@ public async Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(CreateB
 }
 
 
-        public async Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, VerifyBusinessRequest request)
-        {
-            try
-            {
-                // Temizlik: Kodun başındaki/sonundaki boşlukları al
-                string codeToCheck = request.Code?.Trim();
+public async Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, VerifyBusinessRequest request)
+{
+    try
+    {
+        // Temizlik: Kodun başındaki/sonundaki boşlukları al
+        string codeToCheck = request.Code?.Trim();
+        if (string.IsNullOrEmpty(codeToCheck))
+            return ServiceResponse<bool>.ErrorResult("Lütfen doğrulama kodunu giriniz.");
 
-                if (string.IsNullOrEmpty(codeToCheck))
-                    return ServiceResponse<bool>.ErrorResult("Lütfen doğrulama kodunu giriniz.");
+        // SORG U GÜNCELLEMESİ: Doğrulanacak şirketi artık IsVerified == false ile arıyoruz.
+        var business = await _context.Businesses
+            .Include(b => b.SubBusinesses)
+            .FirstOrDefaultAsync(b => 
+                b.OwnerId == userId && 
+                b.VerificationCode == codeToCheck && 
+                b.IsVerified == false); // 🌟 DİKKAT: Artık IsVerified'ı kontrol ediyoruz
 
-                // SORG U DEĞİŞİKLİĞİ BURADA:
-                // BusinessId'ye göre değil, "Giriş Yapan Kullanıcının (OwnerId)" 
-                // ve "Girdiği Kodun (VerificationCode)" eşleştiği işletmeyi buluyoruz.
-                var business = await _context.Businesses
-                    .Include(b => b.SubBusinesses)
-                    .FirstOrDefaultAsync(b => 
-                        b.OwnerId == userId &&              // Bu kullanıcıya ait
-                        b.VerificationCode == codeToCheck && // Kodu bu olan
-                        b.IsActive == false);               // Ve henüz aktif olmamış olan
-
-                if (business == null)
-                    return ServiceResponse<bool>.ErrorResult("Geçersiz doğrulama kodu veya doğrulanacak işletme bulunamadı.");
-
-                // --- Buradan sonrası aynı ---
-
-                // İşletmeyi Aktif Et
-                business.IsActive = true;
-                business.VerificationCode = null; // Kodu temizle (Tekrar kullanılamasın)
-
-                // Alt şubeleri de aktif et
-                if (business.SubBusinesses != null)
-                {
-                    foreach (var sub in business.SubBusinesses)
-                    {
-                        sub.IsActive = true;
-                    }
-                }
-
-                await _context.SaveChangesAsync();
+        if (business == null)
+            return ServiceResponse<bool>.ErrorResult("Geçersiz doğrulama kodu veya doğrulanacak işletme bulunamadı.");
         
-                return ServiceResponse<bool>.SuccessResult(true, "İşletmeniz başarıyla doğrulandı ve aktif edildi.");
-            }
-            catch (Exception ex)
+        business.IsVerified = true; 
+        
+        business.VerificationCode = null; 
+        
+        if (business.SubBusinesses != null)
+        {
+            foreach (var sub in business.SubBusinesses)
             {
-                return ServiceResponse<bool>.ErrorResult("Doğrulama hatası: " + ex.Message);
+                sub.IsVerified = true; 
+                
             }
         }
+        await _context.SaveChangesAsync();
+        return ServiceResponse<bool>.SuccessResult(true, "İşletmeniz başarıyla doğrulandı.");
+    }
+    catch (Exception ex)
+    {
+        return ServiceResponse<bool>.ErrorResult("Doğrulama hatası: " + ex.Message);
+    }
+}
 
         private string HashPassword(string password)
         {
