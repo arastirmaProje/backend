@@ -104,54 +104,48 @@ namespace Personelim.Services.Email
             return await System.Threading.Tasks.Task.FromResult(true);
         }
 
-        // --- SMTP GÖNDERİM METODU (REVİZE EDİLDİ) ---
         private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
         {
-            try
+            // Try-Catch BLOĞUNU KALDIRIYORUZ ki hatayı BusinessService yakalasın
+            // Appsettings.json dosyasından okuma
+            var host = _configuration["Email:SmtpHost"]; 
+            var portString = _configuration["Email:SmtpPort"];
+            var fromEmail = _configuration["Email:SmtpUser"]; 
+            var password = _configuration["Email:SmtpPass"]; 
+            var displayName = _configuration["Email:FromName"] ?? "Personelim App";
+
+            // 1. Basit Kontroller
+            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(fromEmail) || string.IsNullOrEmpty(password))
             {
-                // Appsettings.json dosyasından okuma
-                var host = _configuration["Email:SmtpHost"]; // smtp.gmail.com
-                var port = int.Parse(_configuration["Email:SmtpPort"] ?? "587");
-                var fromEmail = _configuration["Email:SmtpUser"]; // furkanozkan20001@gmail.com
-                var password = _configuration["Email:SmtpPass"]; // 16 haneli Google App Password
-                var displayName = _configuration["Email:FromName"] ?? "Personelim App";
-
-                if (string.IsNullOrEmpty(password))
-                {
-                    _logger.LogError("SMTP Şifresi (SmtpPass) bulunamadı!");
-                    return false;
-                }
-
-                var fromAddress = new MailAddress(fromEmail, displayName);
-                var toAddress = new MailAddress(toEmail);
-
-                using (var smtp = new SmtpClient(host, port))
-                {
-                    smtp.Credentials = new NetworkCredential(fromEmail, password);
-                    smtp.EnableSsl = true; // Gmail için zorunludur
-
-                    using (var message = new MailMessage(fromAddress, toAddress))
-                    {
-                        message.Subject = subject;
-                        message.Body = htmlBody;
-                        message.IsBodyHtml = true;
-
-                        await smtp.SendMailAsync(message);
-                    }
-                }
-
-                _logger.LogInformation($"✅ Mail SMTP ile gönderildi: {toEmail}");
-                return true;
+                throw new Exception("E-posta ayarları (Host, User veya Pass) appsettings.json dosyasında eksik!");
             }
-            catch (Exception ex)
+
+            int port = 587;
+            if (!int.TryParse(portString, out port)) port = 587; // Parse edilemezse 587 varsay
+
+            var fromAddress = new MailAddress(fromEmail, displayName);
+            var toAddress = new MailAddress(toEmail);
+
+            using (var smtp = new SmtpClient(host, port))
             {
-                _logger.LogError($"❌ SMTP Mail Hatası: {ex.Message}");
-                // Konsola da yazalım ki hemen görebilesiniz
-                Console.WriteLine($"SMTP ERROR: {ex.Message}");
-                if(ex.InnerException != null) Console.WriteLine($"INNER: {ex.InnerException.Message}");
-                
-                return false;
+                smtp.Credentials = new NetworkCredential(fromEmail, password);
+                smtp.EnableSsl = true; 
+
+                using (var message = new MailMessage(fromAddress, toAddress))
+                {
+                    message.Subject = subject;
+                    message.Body = htmlBody;
+                    message.IsBodyHtml = true;
+
+                    // Gmail bazen "Timeout" verebilir, süreyi artıralım
+                    smtp.Timeout = 10000; // 10 saniye
+                    
+                    await smtp.SendMailAsync(message);
+                }
             }
+
+            _logger.LogInformation($"✅ Mail SMTP ile gönderildi: {toEmail}");
+            return true;
         }
 
         private string GetBaseHtmlTemplate(string title, string content)
