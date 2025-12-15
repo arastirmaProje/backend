@@ -105,48 +105,61 @@ namespace Personelim.Services.Email
         }
 
         private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
+{
+    // Appsettings.json dosyasından okuma
+    var host = _configuration["Email:SmtpHost"];        // smtp.gmail.com
+    var portString = _configuration["Email:SmtpPort"];  // 587
+    var fromEmail = _configuration["Email:SmtpUser"];   // furkanozkan20001@gmail.com
+    var password = _configuration["Email:SmtpPass"];    // 16 haneli App Password
+    var displayName = _configuration["Email:FromName"] ?? "Personelim App";
+
+    // Port Parsing
+    if (!int.TryParse(portString, out int port)) port = 587;
+
+    // Gönderici ve Alıcı
+    var fromAddress = new MailAddress(fromEmail, displayName);
+    var toAddress = new MailAddress(toEmail);
+
+    using (var smtp = new SmtpClient(host, port))
+    {
+        // --- KRİTİK AYARLAR (SIRASI ÇOK ÖNEMLİ) ---
+
+        // 1. Önce bu ayarı FALSE yapmalıyız. 
+        // Bunu yapmazsak, aşağıda verdiğimiz Credentials'ı EZER ve boş gönderir.
+        smtp.UseDefaultCredentials = false;
+
+        // 2. Şimdi şifreyi veriyoruz.
+        smtp.Credentials = new NetworkCredential(fromEmail, password);
+
+        // 3. Gmail için SSL şarttır.
+        smtp.EnableSsl = true;
+
+        // 4. Gönderim metodu ağ (Network) olmalı.
+        smtp.DeliveryMethod = SmtpDeliveryMethod.Network;
+
+        // ------------------------------------------
+
+        using (var message = new MailMessage(fromAddress, toAddress))
         {
-            // Try-Catch BLOĞUNU KALDIRIYORUZ ki hatayı BusinessService yakalasın
-            // Appsettings.json dosyasından okuma
-            var host = _configuration["Email:SmtpHost"]; 
-            var portString = _configuration["Email:SmtpPort"];
-            var fromEmail = _configuration["Email:SmtpUser"]; 
-            var password = _configuration["Email:SmtpPass"]; 
-            var displayName = _configuration["Email:FromName"] ?? "Personelim App";
+            message.Subject = subject;
+            message.Body = htmlBody;
+            message.IsBodyHtml = true;
 
-            // 1. Basit Kontroller
-            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(fromEmail) || string.IsNullOrEmpty(password))
+            try 
             {
-                throw new Exception("E-posta ayarları (Host, User veya Pass) appsettings.json dosyasında eksik!");
+                await smtp.SendMailAsync(message);
+                _logger.LogInformation($"✅ Mail gönderildi: {toEmail}");
+                return true;
             }
-
-            int port = 587;
-            if (!int.TryParse(portString, out port)) port = 587; // Parse edilemezse 587 varsay
-
-            var fromAddress = new MailAddress(fromEmail, displayName);
-            var toAddress = new MailAddress(toEmail);
-
-            using (var smtp = new SmtpClient(host, port))
+            catch (Exception ex)
             {
-                smtp.Credentials = new NetworkCredential(fromEmail, password);
-                smtp.EnableSsl = true; 
-
-                using (var message = new MailMessage(fromAddress, toAddress))
-                {
-                    message.Subject = subject;
-                    message.Body = htmlBody;
-                    message.IsBodyHtml = true;
-
-                    // Gmail bazen "Timeout" verebilir, süreyi artıralım
-                    smtp.Timeout = 10000; // 10 saniye
-                    
-                    await smtp.SendMailAsync(message);
-                }
+                // Hatayı tam olarak görmek için throw yapıyoruz (BusinessService bunu yakalar)
+                // Ama hatayı biraz daha anlaşılır hale getirelim:
+                throw new Exception($"SMTP Hatası: {ex.Message}", ex);
             }
-
-            _logger.LogInformation($"✅ Mail SMTP ile gönderildi: {toEmail}");
-            return true;
         }
+    }
+}
 
         private string GetBaseHtmlTemplate(string title, string content)
         {
