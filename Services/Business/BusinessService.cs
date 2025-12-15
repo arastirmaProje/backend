@@ -206,34 +206,38 @@ public async Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, Verify
         if (string.IsNullOrEmpty(codeToCheck))
             return ServiceResponse<bool>.ErrorResult("Lütfen doğrulama kodunu giriniz.");
 
-        // SORG U GÜNCELLEMESİ: Doğrulanacak şirketi artık IsVerified == false ile arıyoruz.
+        // Doğrulanacak ana şirketi arıyoruz: OwnerId, VerificationCode ve IsVerified=false
         var business = await _context.Businesses
             .Include(b => b.SubBusinesses)
             .FirstOrDefaultAsync(b => 
                 b.OwnerId == userId && 
                 b.VerificationCode == codeToCheck && 
-                b.IsVerified == false); // 🌟 DİKKAT: Artık IsVerified'ı kontrol ediyoruz
+                b.IsVerified == false); 
 
         if (business == null)
             return ServiceResponse<bool>.ErrorResult("Geçersiz doğrulama kodu veya doğrulanacak işletme bulunamadı.");
         
+        // 1. Ana İşletmeyi Doğrula ve Aktif Et
         business.IsVerified = true; 
-        
+        business.IsActive = true; // 🌟 EKLEME: İşletmeyi aktif hale getiriyoruz
         business.VerificationCode = null; 
         
+        // 2. Alt İşletmeleri (Şubeleri) Doğrula ve Aktif Et
         if (business.SubBusinesses != null)
         {
             foreach (var sub in business.SubBusinesses)
             {
                 sub.IsVerified = true; 
-                
+                sub.IsActive = true; // 🌟 EKLEME: Alt işletmeleri de aktif hale getiriyoruz
             }
         }
+
         await _context.SaveChangesAsync();
         return ServiceResponse<bool>.SuccessResult(true, "İşletmeniz başarıyla doğrulandı.");
     }
     catch (Exception ex)
     {
+        // Loglama burada yapılabilir: _logger.LogError(ex, "Doğrulama hatası");
         return ServiceResponse<bool>.ErrorResult("Doğrulama hatası: " + ex.Message);
     }
 }
