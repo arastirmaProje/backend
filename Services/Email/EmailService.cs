@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Net;
-using System.Net.Mail;
+using MimeKit;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 
 namespace Personelim.Services.Email
 {
+    // IEmailService implementasyonunuz burada varsayılmıştır.
     public class EmailService : IEmailService
     {
         private readonly IConfiguration _configuration;
@@ -15,6 +17,10 @@ namespace Personelim.Services.Email
             _configuration = configuration;
             _logger = logger;
         }
+
+        // =======================================================
+        // GÖNDERİM METODLARI (Bu kısım aynı kalabilir)
+        // =======================================================
 
         public async Task<bool> SendBusinessVerificationCodeAsync(string email, string userName, string businessName, string code)
         {
@@ -101,66 +107,89 @@ namespace Personelim.Services.Email
 
         public async Task<bool> SendInvitationEmailAsync(string email, string invitationCode, string businessName, string inviterName, string message)
         {
-            return await System.Threading.Tasks.Task.FromResult(true);
+            // Davet e-postası implementasyonu buraya eklenecektir.
+            // Örnek:
+            // string content = $@"<p>Merhaba, {businessName} işletmesi sizi davet ediyor.</p>";
+            // var body = GetBaseHtmlTemplate("İşletme Daveti", content);
+            // return await SendEmailBaseAsync(email, "İşletme Daveti", body);
+
+            // Geçici olarak true döndürülmüş.
+            return await System.Threading.Tasks.Task.FromResult(true); 
         }
 
+
+        // =======================================================
+        // KRİTİK KISIM: SendEmailBaseAsync (MailKit ile)
+        // =======================================================
         private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
-{
-    // Appsettings.json dosyasından okuma
-    var host = _configuration["Email:SmtpHost"];        // smtp.gmail.com
-    var portString = _configuration["Email:SmtpPort"];  // 587
-    var fromEmail = _configuration["Email:SmtpUser"];   // furkanozkan20001@gmail.com
-    var password = _configuration["Email:SmtpPass"];    // 16 haneli App Password
-    var displayName = _configuration["Email:FromName"] ?? "Personelim App";
-
-    // Port Parsing
-    if (!int.TryParse(portString, out int port)) port = 587;
-
-    // Gönderici ve Alıcı
-    var fromAddress = new MailAddress(fromEmail, displayName);
-    var toAddress = new MailAddress(toEmail);
-
-    using (var smtp = new SmtpClient(host, port))
-    {
-        // --- KRİTİK AYARLAR (SIRASI ÇOK ÖNEMLİ) ---
-
-        // 1. Önce bu ayarı FALSE yapmalıyız. 
-        // Bunu yapmazsak, aşağıda verdiğimiz Credentials'ı EZER ve boş gönderir.
-        smtp.UseDefaultCredentials = false;
-
-        // 2. Şimdi şifreyi veriyoruz.
-        smtp.Credentials = new NetworkCredential(fromEmail, password);
-
-        // 3. Gmail için SSL şarttır.
-        smtp.EnableSsl = true;
-
-        // 4. Gönderim metodu ağ (Network) olmalı.
-        smtp.DeliveryMethod = SmtpDeliveryMethod.Network;
-
-        // ------------------------------------------
-
-        using (var message = new MailMessage(fromAddress, toAddress))
         {
-            message.Subject = subject;
-            message.Body = htmlBody;
-            message.IsBodyHtml = true;
+            // Appsettings.json dosyasından okuma
+            var host = _configuration["Email:SmtpHost"];        
+            var portString = _configuration["Email:SmtpPort"];  
+            var fromEmail = _configuration["Email:SmtpUser"];   
+            var password = _configuration["Email:SmtpPass"];    
+            var displayName = _configuration["Email:FromName"] ?? "Personelim App";
 
-            try 
+            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(fromEmail) || string.IsNullOrEmpty(password))
             {
-                await smtp.SendMailAsync(message);
-                _logger.LogInformation($"✅ Mail gönderildi: {toEmail}");
-                return true;
+                _logger.LogError("Email ayarları eksik: Host, Kullanıcı veya Şifre bulunamadı.");
+                return false;
+            }
+
+            if (!int.TryParse(portString, out int port)) port = 587; // Varsayılan: 587
+
+            // MimeMessage oluşturma (Gönderi içeriğini MailKit formatında hazırlar)
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress(displayName, fromEmail));
+            message.To.Add(MailboxAddress.Parse(toEmail));
+            message.Subject = subject;
+            
+            message.Body = new TextPart("html") { Text = htmlBody };
+
+            try
+            {
+                // SmtpClient oluşturma (MailKit)
+                using (var client = new SmtpClient())
+                {
+                    // SecureSocketOptions.Auto: Port 587 ise STARTTLS'i doğru şekilde dener. 
+                    // Port 465 ise Implicit SSL/TLS kullanır. Bu sayede ayarlarınız esnek olur.
+                    await client.ConnectAsync(host, port, SecureSocketOptions.Auto); 
+
+                    // Sunucuya kimlik doğrulama
+                    await client.AuthenticateAsync(fromEmail, password);
+
+                    // E-posta gönderme
+                    await client.SendAsync(message);
+                    
+                    // Bağlantıyı kes
+                    await client.DisconnectAsync(true);
+                    
+                    _logger.LogInformation($"✅ Mail başarıyla gönderildi: {toEmail}");
+                    return true;
+                }
+            }
+            catch (AuthenticationException authEx)
+            {
+                _logger.LogError(authEx, $"❌ SMTP Kimlik Doğrulama Hatası. Kullanıcı: {fromEmail}");
+                // Kimlik doğrulama hatası genellikle yanlış şifre (Uygulama Şifresi sorunu) veya kullanıcı adından kaynaklanır.
+                throw new Exception($"SMTP Kimlik Doğrulama Hatası: Şifre veya Kullanıcı Adı yanlış. | DETAY: {authEx.Message}", authEx);
+            }
+            catch (SmtpCommandException cmdEx)
+            {
+                _logger.LogError(cmdEx, $"❌ SMTP Komut Hatası. Hata Kodu: {cmdEx.ErrorCode}");
+                throw new Exception($"SMTP Komut Hatası: Sunucu bağlantıyı reddetti. | DETAY: {cmdEx.Message}", cmdEx);
             }
             catch (Exception ex)
             {
-                // Hatayı tam olarak görmek için throw yapıyoruz (BusinessService bunu yakalar)
-                // Ama hatayı biraz daha anlaşılır hale getirelim:
-                throw new Exception($"SMTP Hatası: {ex.Message}", ex);
+                _logger.LogError(ex, $"❌ GENEL SMTP Hatası. Alıcı: {toEmail}");
+                // Diğer genel hatalar (Ağ sorunu, DNS, zaman aşımı vb.)
+                throw new Exception($"SMTP Hatası: Failure sending mail. | DETAY: {ex.InnerException?.Message ?? ex.Message}", ex);
             }
         }
-    }
-}
 
+        // =======================================================
+        // HTML TEMPLATE (Aynı kalabilir)
+        // =======================================================
         private string GetBaseHtmlTemplate(string title, string content)
         {
             return $@"
