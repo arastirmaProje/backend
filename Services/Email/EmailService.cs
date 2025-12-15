@@ -1,8 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
+using System.Net;
+using System.Net.Mail;
 
 namespace Personelim.Services.Email
 {
@@ -16,26 +15,25 @@ namespace Personelim.Services.Email
             _configuration = configuration;
             _logger = logger;
         }
-        
+
         public async Task<bool> SendBusinessVerificationCodeAsync(string email, string userName, string businessName, string code)
         {
             string title = "İşletme Doğrulama Kodu";
             string content = $@"
-        <p>Merhaba sn. <strong>{userName}</strong>,</p>
-        <p><strong>{businessName}</strong> adlı işletme kaydınız alınmıştır. İşlemi tamamlamak için aşağıdaki doğrulama kodunu kullanınız.</p>
-        
-        <div style='background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; text-align: center; margin: 30px 0;'>
-            <span style='display: block; font-size: 14px; color: #546e7a; margin-bottom: 5px;'>DOĞRULAMA KODUNUZ</span>
-            <span style='font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0d47a1; font-family: monospace;'>{code}</span>
-        </div>
-        
-        <p style='font-size: 13px; color: #6c757d;'>Bu kod güvenliğiniz içindir, lütfen kimseyle paylaşmayınız.</p>";
-
+                <p>Merhaba sn. <strong>{userName}</strong>,</p>
+                <p><strong>{businessName}</strong> adlı işletme kaydınız alınmıştır. İşlemi tamamlamak için aşağıdaki doğrulama kodunu kullanınız.</p>
+                
+                <div style='background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; text-align: center; margin: 30px 0;'>
+                    <span style='display: block; font-size: 14px; color: #546e7a; margin-bottom: 5px;'>DOĞRULAMA KODUNUZ</span>
+                    <span style='font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0d47a1; font-family: monospace;'>{code}</span>
+                </div>
+                
+                <p style='font-size: 13px; color: #6c757d;'>Bu kod güvenliğiniz içindir, lütfen kimseyle paylaşmayınız.</p>";
+            
             var body = GetBaseHtmlTemplate(title, content);
             return await SendEmailBaseAsync(email, $"{businessName} - Doğrulama Kodu", body);
         }
-        
-        
+
         public async Task<bool> SendPasswordResetCodeAsync(string email, string code, string userName)
         {
             string content = $@"
@@ -46,17 +44,18 @@ namespace Personelim.Services.Email
                     <span style='font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2c3e50; font-family: monospace;'>{code}</span>
                 </div>
                 <p style='font-size: 13px; color: #6c757d;'>Bu kod 15 dakika geçerlidir.</p>";
+            
             var body = GetBaseHtmlTemplate("Şifre Sıfırlama", content);
             return await SendEmailBaseAsync(email, "Şifre Sıfırlama Kodu", body);
         }
-        
+
         public async Task<bool> SendAccountCreatedEmailAsync(string email, string firstName, string plainPassword, string businessName = null)
         {
             string title = "Personelim Hesabınız Oluşturuldu";
             string intro = !string.IsNullOrEmpty(businessName)
                 ? $"<p><strong>{businessName}</strong> işletmesi sizi ekibine dahil etti ve sizin için bir hesap oluşturuldu.</p>"
                 : "<p>Sistemde kaydınız oluşturuldu.</p>";
-
+            
             string content = $@"
                 <p>Merhaba <strong>{firstName}</strong>,</p>
                 {intro}
@@ -78,14 +77,13 @@ namespace Personelim.Services.Email
                 <div style='text-align: center; margin-top: 30px;'>
                     <p style='font-size: 14px; color: #7f8c8d;'>Bu şifre sisteme tarafından otomatik oluşturulmuştur.</p>
                 </div>";
-
+            
             var body = GetBaseHtmlTemplate(title, content);
             string subject = !string.IsNullOrEmpty(businessName) ? $"{businessName} Sizi Ekibine Ekledi - Giriş Bilgileri" : "Personelim Giriş Bilgileri";
-            
+
             return await SendEmailBaseAsync(email, subject, body);
         }
 
-        // Mevcut kullanıcıyı ekleyince giden mail
         public async Task<bool> SendAddedToBusinessEmailAsync(string email, string firstName, string businessName)
         {
             string content = $@"
@@ -96,70 +94,68 @@ namespace Personelim.Services.Email
                 <div style='text-align: center; margin: 30px 0;'>
                      <p style='color:#27ae60; font-weight:bold;'>Hesabınız zaten aktif, ekstra işlem yapmanıza gerek yoktur.</p>
                 </div>";
+            
             var body = GetBaseHtmlTemplate("Yeni Bir Ekibe Katıldınız", content);
             return await SendEmailBaseAsync(email, $"{businessName} Sizi Ekledi", body);
         }
-        
+
         public async Task<bool> SendInvitationEmailAsync(string email, string invitationCode, string businessName, string inviterName, string message)
         {
-            return await System.Threading.Tasks.Task.FromResult(true); 
+            return await System.Threading.Tasks.Task.FromResult(true);
         }
-        
+
+        // --- SMTP GÖNDERİM METODU (REVİZE EDİLDİ) ---
         private async Task<bool> SendEmailBaseAsync(string toEmail, string subject, string htmlBody)
         {
             try
             {
-                var apiKey = Environment.GetEnvironmentVariable("Email__SmtpPass") ?? _configuration["Email:SmtpPass"];
-                
-                if (string.IsNullOrEmpty(apiKey))
+                // Appsettings.json dosyasından okuma
+                var host = _configuration["Email:SmtpHost"]; // smtp.gmail.com
+                var port = int.Parse(_configuration["Email:SmtpPort"] ?? "587");
+                var fromEmail = _configuration["Email:SmtpUser"]; // furkanozkan20001@gmail.com
+                var password = _configuration["Email:SmtpPass"]; // 16 haneli Google App Password
+                var displayName = _configuration["Email:FromName"] ?? "Personelim App";
+
+                if (string.IsNullOrEmpty(password))
                 {
-                    _logger.LogError("Email API Key bulunamadı! (Email:SmtpPass)");
+                    _logger.LogError("SMTP Şifresi (SmtpPass) bulunamadı!");
                     return false;
                 }
 
-                var senderName = "Personelim"; 
-                var senderEmail = "furkanozkan20001@gmail.com"; 
+                var fromAddress = new MailAddress(fromEmail, displayName);
+                var toAddress = new MailAddress(toEmail);
 
-                var payload = new
+                using (var smtp = new SmtpClient(host, port))
                 {
-                    sender = new { name = senderName, email = senderEmail },
-                    to = new[] { new { email = toEmail } },
-                    subject = subject,
-                    htmlContent = htmlBody
-                };
+                    smtp.Credentials = new NetworkCredential(fromEmail, password);
+                    smtp.EnableSsl = true; // Gmail için zorunludur
 
-                var jsonContent = JsonSerializer.Serialize(payload);
-                var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+                    using (var message = new MailMessage(fromAddress, toAddress))
+                    {
+                        message.Subject = subject;
+                        message.Body = htmlBody;
+                        message.IsBodyHtml = true;
 
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
-                httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                var url = "https://api.brevo.com/v3/smtp/email";
-                var response = await httpClient.PostAsync(url, httpContent);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation($"✅ Mail başarıyla gönderildi: {toEmail}");
-                    return true;
+                        await smtp.SendMailAsync(message);
+                    }
                 }
-                else
-                {
-                    var errorBody = await response.Content.ReadAsStringAsync();
-                    _logger.LogError($"❌ Mail Gönderim Hatası: {response.StatusCode} - {errorBody}");
-                    return false;
-                }
+
+                _logger.LogInformation($"✅ Mail SMTP ile gönderildi: {toEmail}");
+                return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Mail gönderirken exception oluştu.");
+                _logger.LogError($"❌ SMTP Mail Hatası: {ex.Message}");
+                // Konsola da yazalım ki hemen görebilesiniz
+                Console.WriteLine($"SMTP ERROR: {ex.Message}");
+                if(ex.InnerException != null) Console.WriteLine($"INNER: {ex.InnerException.Message}");
+                
                 return false;
             }
         }
 
         private string GetBaseHtmlTemplate(string title, string content)
         {
-            // Tasarım aynı kalabilir, sadece temizledim
             return $@"
             <!DOCTYPE html>
             <html>

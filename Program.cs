@@ -15,7 +15,7 @@ using Personelim.Services.Business;
 using Personelim.Services.BusinessMember;
 using Personelim.Services.Email;
 using Personelim.Services.Leave;
-
+using Personelim.Services.Task;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,6 +43,7 @@ builder.Services.AddScoped<IBusinessValidator, BusinessValidator>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
 var key = Encoding.UTF8.GetBytes(jwtKey);
 builder.Services.AddAuthentication(options =>
 {

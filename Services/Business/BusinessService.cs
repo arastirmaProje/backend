@@ -71,128 +71,131 @@ namespace Personelim.Services.Business
             return ServiceResponse<bool>.SuccessResult(true);
         }
 
-        // --- GÜNCELLENMİŞ CREATE METODU ---
-        public async Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(CreateBusinessRequest request, Guid userId)
+        // BusinessService.cs içine sadece bu metodu yapıştırın (Eskisiyle değiştirin)
+
+public async Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(CreateBusinessRequest request, Guid userId)
+{
+    // Transaction (İşlem bütünlüğü) başlatıyoruz
+    using var transaction = await _context.Database.BeginTransactionAsync();
+    try
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            return ServiceResponse<BusinessResponse>.ErrorResult("Kullanıcı bulunamadı.");
+        }
+
+        // 1. Doğrulama Kodu Üret
+        Random random = new Random();
+        string verificationCode = random.Next(100000, 999999).ToString();
+
+        // 2. İşletmeyi PASİF (IsActive = false) olarak oluştur
+        var mainBusiness = new Personelim.Models.Business
+        {
+            Name = request.BusinessName,
+            LocationName = string.Empty,
+            Latitude = 0,
+            Longitude = 0,
+            PhoneNumber = request.PhoneNumber,
+            ProvinceId = request.ProvinceId,
+            DistrictId = request.DistrictId,
+            Address = request.Address,
+            Description = request.Description,
+            OwnerId = userId,
+            IsActive = false, 
+            VerificationCode = verificationCode,
+            SubBusinesses = new List<Personelim.Models.Business>(),
+            CreatedAt = DateTime.UtcNow 
+        };
+
+        await _context.Businesses.AddAsync(mainBusiness);
+
+        // Şubeler varsa ekle
+        if (request.Offices != null && request.Offices.Count > 0)
+        {
+            foreach (var officeDto in request.Offices)
             {
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-                if (user == null)
+                var subBusiness = new Personelim.Models.Business
                 {
-                    return ServiceResponse<BusinessResponse>.ErrorResult("Kullanıcı bulunamadı.");
-                }
-
-                // 1. Doğrulama Kodunu Üret
-                Random random = new Random();
-                string verificationCode = random.Next(100000, 999999).ToString();
-
-                // 2. İşletmeyi PASİF (IsActive = false) olarak oluştur ve Kodu kaydet
-                var mainBusiness = new Personelim.Models.Business
-                {
-                    Name = request.BusinessName,
-                    LocationName = string.Empty,
-                    Latitude = 0,
-                    Longitude = 0,
-                    PhoneNumber = request.PhoneNumber,
-                    ProvinceId = request.ProvinceId,
-                    DistrictId = request.DistrictId,
-                    Address = request.Address,
-                    Description = request.Description,
-                    OwnerId = userId,
-                    
-                    IsActive = false, // <-- DİKKAT: Pasif başlıyor
-                    VerificationCode = verificationCode, // <-- DİKKAT: Kodu DB'ye yazıyoruz
-                    
-                    SubBusinesses = new List<Personelim.Models.Business>()
-                };
-                await _context.Businesses.AddAsync(mainBusiness);
-
-                if (request.Offices != null && request.Offices.Count > 0)
-                {
-                    foreach (var officeDto in request.Offices)
-                    {
-                        var subBusiness = new Personelim.Models.Business
-                        {
-                            LocationName = officeDto.OfficeName,
-                            Latitude = officeDto.Latitude,
-                            Longitude = officeDto.Longitude,
-                            Name = $"{request.BusinessName} - {officeDto.OfficeName}",
-                            Address = mainBusiness.Address,
-                            PhoneNumber = mainBusiness.PhoneNumber,
-                            ProvinceId = mainBusiness.ProvinceId,
-                            DistrictId = mainBusiness.DistrictId,
-                            Description = mainBusiness.Description,
-                            OwnerId = userId,
-                            IsActive = false, // Alt şubeler de pasif
-                            ParentBusiness = mainBusiness
-                        };
-                        mainBusiness.SubBusinesses.Add(subBusiness);
-                    }
-                }
-
-                var ownerMembership = new Personelim.Models.BusinessMember
-                {
-                    Business = mainBusiness,
-                    UserId = userId,
-                    Role = Personelim.Models.Enums.UserRole.Owner,
-                    Position = "İşletme Sahibi",
-                    JoinedAt = DateTime.UtcNow,
-                    IsActive = true
-                };
-                await _context.BusinessMembers.AddAsync(ownerMembership);
-
-                await _context.SaveChangesAsync();
-
-                // 3. Mail Gönderimi (Hata yakalama ve Loglama eklendi)
-                try
-                {
-                    bool mailSent = await _emailService.SendBusinessVerificationCodeAsync(
-                        user.Email,
-                        user.FirstName,
-                        mainBusiness.Name,
-                        verificationCode
-                    );
-                    
-                    if (!mailSent)
-                    {
-                        _logger.LogError($"Mail servisi false döndü. Email: {user.Email}");
-                    }
-                }
-                catch (Exception mailEx)
-                {
-                    _logger.LogError(mailEx, "Mail gönderilirken hata oluştu.");
-                    // Transaction'ı bozmuyoruz, kullanıcı daha sonra "Kodu Tekrar Gönder" diyebilir.
-                }
-
-                await transaction.CommitAsync();
-
-                var responseDto = new BusinessResponse
-                {
-                    Id = mainBusiness.Id,
-                    Name = mainBusiness.Name,
+                    LocationName = officeDto.OfficeName,
+                    Latitude = officeDto.Latitude,
+                    Longitude = officeDto.Longitude,
+                    Name = $"{request.BusinessName} - {officeDto.OfficeName}",
+                    Address = mainBusiness.Address,
                     PhoneNumber = mainBusiness.PhoneNumber,
                     ProvinceId = mainBusiness.ProvinceId,
                     DistrictId = mainBusiness.DistrictId,
-                    Address = mainBusiness.Address,
                     Description = mainBusiness.Description,
-                    Latitude = mainBusiness.Latitude,
-                    Longitude = mainBusiness.Longitude,
-                    LocationName = mainBusiness.LocationName,
-                    CreatedAt = mainBusiness.CreatedAt,
+                    OwnerId = userId,
+                    IsActive = false,
+                    ParentBusiness = mainBusiness,
+                    CreatedAt = DateTime.UtcNow
                 };
-                return ServiceResponse<BusinessResponse>.SuccessResult(responseDto, "Şirket oluşturuldu. Lütfen e-postanıza gönderilen doğrulama kodunu giriniz.");
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                var errorMessage = ex.Message;
-                if (ex.InnerException != null) errorMessage += $" | DETAY: {ex.InnerException.Message}";
-                return ServiceResponse<BusinessResponse>.ErrorResult("Şirket kaydedilemedi.", errorMessage);
+                mainBusiness.SubBusinesses.Add(subBusiness);
             }
         }
 
-        // BusinessService.cs içindeki VerifyBusinessAsync metodu
+        // Kullanıcıyı Owner olarak ata
+        var ownerMembership = new Personelim.Models.BusinessMember
+        {
+            Business = mainBusiness,
+            UserId = userId,
+            Role = Personelim.Models.Enums.UserRole.Owner,
+            Position = "İşletme Sahibi",
+            JoinedAt = DateTime.UtcNow,
+            IsActive = true
+        };
+
+        await _context.BusinessMembers.AddAsync(ownerMembership);
+        await _context.SaveChangesAsync();
+
+        // 3. Mail Gönderimi 
+        // Eğer SMTP'de hata olursa catch'e düşecek veya false dönecek
+        bool mailSent = await _emailService.SendBusinessVerificationCodeAsync(
+            user.Email,
+            user.FirstName,
+            mainBusiness.Name,
+            verificationCode
+        );
+
+        if (!mailSent)
+        {
+            // Mail gitmediyse hata fırlat ki aşağıdaki catch bloğu veritabanı işlemini geri alsın.
+            throw new Exception("Doğrulama e-postası gönderilemedi. Lütfen e-posta adresinizi kontrol edin veya daha sonra tekrar deneyin.");
+        }
+
+        // Her şey yolundaysa işlemi onayla
+        await transaction.CommitAsync();
+
+        var responseDto = new BusinessResponse
+        {
+            Id = mainBusiness.Id,
+            Name = mainBusiness.Name,
+            PhoneNumber = mainBusiness.PhoneNumber,
+            ProvinceId = mainBusiness.ProvinceId,
+            DistrictId = mainBusiness.DistrictId,
+            Address = mainBusiness.Address,
+            Description = mainBusiness.Description,
+            Latitude = mainBusiness.Latitude,
+            Longitude = mainBusiness.Longitude,
+            LocationName = mainBusiness.LocationName,
+            CreatedAt = mainBusiness.CreatedAt,
+        };
+
+        return ServiceResponse<BusinessResponse>.SuccessResult(responseDto, "Şirket oluşturuldu. Lütfen e-postanıza gönderilen doğrulama kodunu giriniz.");
+    }
+    catch (Exception ex)
+    {
+        // Hata durumunda (Mail gitmezse veya DB hatası olursa) yapılan kayıtları geri al
+        await transaction.RollbackAsync();
+
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null) errorMessage += $" | DETAY: {ex.InnerException.Message}";
+        
+        return ServiceResponse<BusinessResponse>.ErrorResult("Şirket kaydedilemedi.", errorMessage);
+    }
+}
+
 
         public async Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, VerifyBusinessRequest request)
         {

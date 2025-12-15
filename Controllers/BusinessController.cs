@@ -44,8 +44,6 @@ namespace Personelim.Controllers
         [HttpPost("verify")]
         public async Task<IActionResult> VerifyBusiness([FromBody] VerifyBusinessRequest request)
         {
-            // Token'dan UserId'yi al (Helpers metodunuz varsa onu kullanın)
-            // Örnek: var userId = Guid.Parse(User.FindFirst("id")?.Value);
             var userId = GetUserIdFromToken(); 
 
             var result = await _businessService.VerifyBusinessAsync(userId, request);
