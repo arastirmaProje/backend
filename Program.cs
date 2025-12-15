@@ -58,8 +58,8 @@ var signingKey = new SymmetricSecurityKey(
 // =======================================================
 // EMAIL CONFIG  🔥 KRİTİK
 // =======================================================
-builder.Services.Configure<EmailSettings>(
-    builder.Configuration.GetSection("Email")
+builder.Services.Configure<SendGridSettings>(
+    builder.Configuration.GetSection("SendGrid")
 );
 
 // =======================================================
