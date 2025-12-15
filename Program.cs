@@ -14,15 +14,14 @@ using Personelim.Services.Email;
 using Personelim.Services.Leave;
 using Personelim.Services.Task;
 using System.Text;
-using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // =======================================================
-// CONFIGURATION (ENV + JSON)
+// CONFIGURATION (JSON + ENV)  ✅ Render uyumlu
 // =======================================================
 builder.Configuration
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
 
 // =======================================================
@@ -30,13 +29,14 @@ builder.Configuration
 // =======================================================
 var connectionString =
     Environment.GetEnvironmentVariable("DATABASE_URL")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new Exception("Database connection string not found");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 // =======================================================
-// JWT
+// JWT CONFIG
 // =======================================================
 var jwtKey =
     Environment.GetEnvironmentVariable("JWT_KEY")
@@ -51,10 +51,12 @@ var jwtAudience =
     Environment.GetEnvironmentVariable("JWT_AUDIENCE")
     ?? builder.Configuration["Jwt:Audience"];
 
-var key = Encoding.UTF8.GetBytes(jwtKey);
+var signingKey = new SymmetricSecurityKey(
+    Encoding.UTF8.GetBytes(jwtKey)
+);
 
 // =======================================================
-// EMAIL CONFIG (🔥 KRİTİK KISIM)
+// EMAIL CONFIG  🔥 KRİTİK
 // =======================================================
 builder.Services.Configure<EmailSettings>(
     builder.Configuration.GetSection("Email")
@@ -77,25 +79,30 @@ builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 
 // =======================================================
-// AUTH
+// AUTHENTICATION & AUTHORIZATION
 // =======================================================
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-.AddJwtBearer(options =>
-{
-    options.RequireHttpsMetadata = true;
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = true,
-        ValidIssuer = jwtIssuer,
-        ValidateAudience = true,
-        ValidAudience = jwtAudience,
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
-    };
-});
+        options.RequireHttpsMetadata = true;
+        options.SaveToken = true;
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = signingKey,
+
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+
+            ValidateAudience = true,
+            ValidAudience = jwtAudience,
+
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
 // =======================================================
 // CORS
@@ -146,12 +153,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // =======================================================
-// APP
+// BUILD APP
 // =======================================================
 var app = builder.Build();
 
 // =======================================================
-// MIGRATION + SEED
+// DATABASE MIGRATION (SAFE)
 // =======================================================
 using (var scope = app.Services.CreateScope())
 {
@@ -160,7 +167,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // =======================================================
-// PIPELINE
+// HTTP PIPELINE
 // =======================================================
 app.UseSwagger();
 app.UseSwaggerUI();
