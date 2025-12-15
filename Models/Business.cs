@@ -16,8 +16,8 @@ namespace Personelim.Models
         public double Longitude { get; set; }    
         
 
-        public int ProvinceId { get; set; }
-        public int DistrictId { get; set; }
+        public int? ProvinceId { get; set; }
+        public int? DistrictId { get; set; }
         public Guid OwnerId { get; set; }
         public Guid? ParentBusinessId { get; set; }
         public bool IsActive { get; set; }

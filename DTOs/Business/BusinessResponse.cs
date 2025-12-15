@@ -13,9 +13,9 @@ namespace Personelim.DTOs.Business
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         
-        public int ProvinceId { get; set; }
+        public int? ProvinceId { get; set; }
         public string ProvinceName { get; set; }
-        public int DistrictId { get; set; }
+        public int? DistrictId { get; set; }
         public string DistrictName { get; set; }
         
         public string Role { get; set; }
