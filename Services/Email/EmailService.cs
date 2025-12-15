@@ -82,9 +82,8 @@ public class EmailService : IEmailService
         return await SendAsync(email, "İşletme Daveti", body);
     }
 
-    // =======================================================
-    // CORE SEND
-    // =======================================================
+    // CORE SEND (GÜNCELLENMİŞ VERSİYON)
+// =======================================================
     private async Task<bool> SendAsync(string to, string subject, string html)
     {
         try
@@ -102,20 +101,30 @@ public class EmailService : IEmailService
 
             var response = await _client.SendEmailAsync(msg);
 
+            // Hata durumunda (4xx veya 5xx)
             if ((int)response.StatusCode >= 400)
             {
+                // 🛑 YANIT GÖVDESİNİ OKUYORUZ 🛑
+                // Bu, SendGrid'in neden hata verdiğini gösteren JSON'u içerir.
+                var responseBody = await response.Body.ReadAsStringAsync(); 
+
                 _logger.LogError(
-                    "SendGrid error {Status}",
-                    response.StatusCode);
+                    "SendGrid Error. Status: {Status}. Body: {Body}",
+                    response.StatusCode,
+                    responseBody); // Log'a hata detayını ekledik
+                
                 return false;
             }
-
+        
+            // 200, 201 veya 202 Success durumunda
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SendGrid email error");
-            throw;
+            _logger.LogError(ex, "SendGrid email error occurred in SendAsync.");
+            // Catch bloğunda throw kaldırılarak hata yakalanabilir, 
+            // ancak sizin BusinessService'iniz throw bekliyor. Bu yüzden throw bırakıldı.
+            throw; 
         }
     }
 
