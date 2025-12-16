@@ -8,6 +8,7 @@ namespace Personelim.DTOs.Business
         public string? PhoneNumber { get; set; }
         public int? ProvinceId { get; set; }
         public int? DistrictId { get; set; }
+        public IFormFile? Image { get; set; }
 
         
         public string? LocationName { get; set; }

@@ -14,6 +14,7 @@ using Personelim.Services.Email;
 using Personelim.Services.Leave;
 using Personelim.Services.Task;
 using System.Text;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -173,6 +174,31 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+// =========================================================================
+// 🔥 GARANTİLİ DOSYA SUNUCUSU AYARI 🔥
+// =========================================================================
+
+// 1. Projenin çalıştığı klasörü bul ve "wwwroot" yolunu oluştur
+string currentDirectory = Directory.GetCurrentDirectory();
+string wwwrootPath = Path.Combine(currentDirectory, "wwwroot");
+
+// 2. Klasör fiziksel olarak yoksa oluştur (Hata almamak için)
+if (!Directory.Exists(wwwrootPath))
+{
+    Directory.CreateDirectory(wwwrootPath);
+}
+
+// 3. Bu klasörü dış dünyaya aç
+app.UseStaticFiles(new StaticFileOptions
+{
+    // Dosyaları kesinlikle bu klasörden oku
+    FileProvider = new PhysicalFileProvider(wwwrootPath),
+    
+    // URL'de bir ön ek istemiyoruz. 
+    // Yani: localhost:5059/uploads/resim.jpg diyeceğiz.
+    RequestPath = "" 
+});
+// =========================================================================
 app.UseCors("AllowAll");
 
 app.UseAuthentication();

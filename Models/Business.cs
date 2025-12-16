@@ -15,7 +15,7 @@ namespace Personelim.Models
         public double Latitude { get; set; }     
         public double Longitude { get; set; }    
         
-
+        public string? ImageUrl { get; set; }
         public int? ProvinceId { get; set; }
         public int? DistrictId { get; set; }
         public Guid OwnerId { get; set; }

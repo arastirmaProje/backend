@@ -58,11 +58,11 @@ namespace Personelim.Controllers
         [Authorize]
         [HttpPut("profile")]
         public async Task<ActionResult<ServiceResponse<UserProfileResponse>>> UpdateProfile(
-            [FromBody] UpdateUserProfileRequest request)
+            [FromForm] UpdateUserProfileRequest request) 
         {
             var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var result = await _authService.UpdateUserProfileAsync(userId, request);
-            
+    
             if (!result.Success)
             {
                 return BadRequest(result);

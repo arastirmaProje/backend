@@ -1,11 +1,39 @@
 {
   "Version": 1,
-  "Hash": "bf/YalxXUjRI7u1DB2AAzbplVdnhmLl1nMhJWp9Hzqc=",
+  "Hash": "NR6ZZ5MhSQhaKP9ZJ+nWkJlQrbxD64pfcfxmcagx3lE=",
   "Source": "Personelim",
   "BasePath": "_content/Personelim",
   "Mode": "Default",
   "ManifestType": "Build",
   "ReferencedProjectsConfiguration": [],
-  "DiscoveryPatterns": [],
-  "Assets": []
+  "DiscoveryPatterns": [
+    {
+      "Name": "Personelim/wwwroot",
+      "Source": "Personelim",
+      "ContentRoot": "/Users/furkanozkan/RiderProjects/Personelim/Personelim/wwwroot/",
+      "BasePath": "_content/Personelim",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": [
+    {
+      "Identity": "/Users/furkanozkan/RiderProjects/Personelim/Personelim/wwwroot/uploads/user-avatars/c0891285-2324-4b7b-8ee5-b172d856aab9_94fc8193-27e0-412f-80da-58246ee5158c.jpeg",
+      "SourceId": "Personelim",
+      "SourceType": "Discovered",
+      "ContentRoot": "/Users/furkanozkan/RiderProjects/Personelim/Personelim/wwwroot/",
+      "BasePath": "_content/Personelim",
+      "RelativePath": "uploads/user-avatars/c0891285-2324-4b7b-8ee5-b172d856aab9_94fc8193-27e0-412f-80da-58246ee5158c.jpeg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot/uploads/user-avatars/c0891285-2324-4b7b-8ee5-b172d856aab9_94fc8193-27e0-412f-80da-58246ee5158c.jpeg"
+    }
+  ]
 }

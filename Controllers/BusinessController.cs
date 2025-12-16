@@ -11,7 +11,6 @@ namespace Personelim.Controllers
     public class BusinessController : ControllerBase
     {
         private readonly IBusinessService _businessService;
-
         public BusinessController(IBusinessService businessService)
         {
             _businessService = businessService;
@@ -21,30 +20,24 @@ namespace Personelim.Controllers
         [HttpPost("create-business")] 
         public async Task<IActionResult> CreateBusiness([FromBody] CreateBusinessRequest request)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            
-            if (userIdClaim == null)
-            {
-                return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
-            }
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
 
-            var userId = Guid.Parse(userIdClaim.Value);
-            
             var result = await _businessService.CreateBusinessAsync(request, userId);
             
             if (!result.Success)
             {
                 return BadRequest(result);
             }
-
             return CreatedAtAction(nameof(GetBusinessById), new { businessId = result.Data.Id }, result);
         }
         
-        
+        [Authorize]
         [HttpPost("verify")]
         public async Task<IActionResult> VerifyBusiness([FromBody] VerifyBusinessRequest request)
         {
             var userId = GetUserIdFromToken(); 
+            if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _businessService.VerifyBusinessAsync(userId, request);
         
@@ -52,32 +45,40 @@ namespace Personelim.Controllers
             return BadRequest(result);
         }
         
-        private Guid GetUserIdFromToken()
+        // GÜNCELLEME METODU EKLENDİ
+        [Authorize]
+        [HttpPut("{businessId}")] // Örn: api/business/{guid}
+        public async Task<IActionResult> UpdateBusiness(Guid businessId, [FromForm] UpdateBusinessRequest request)
         {
-            var idClaim = User.Claims.FirstOrDefault(c => c.Type == "uid" || c.Type == "id" || c.Type == System.Security.Claims.ClaimTypes.NameIdentifier);
-            return idClaim != null ? Guid.Parse(idClaim.Value) : Guid.Empty;
+            // NOT: [FromForm] kullanıldığı için JSON değil, form-data olarak gönderilmelidir.
+            // Bu sayede hem text verileri hem de dosya (Image) aynı anda alınabilir.
+            
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _businessService.UpdateBusinessAsync(userId, businessId, request);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
         }
-        
-        
+
         [HttpGet("{businessId}")]
         public async Task<IActionResult> GetBusinessById(Guid businessId)
         {
-            Guid? userId = null;
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var userId = GetUserIdFromToken();
+            // userId null olsa bile (anonim görüntüleme varsa) GetBusinessByIdAsync çalışır, yoksa Guid.Empty döner.
+            // Serviste userId nullable tanımlı değilse burada Guid.Empty gidecektir.
             
-            if (userIdClaim != null)
-            {
-                userId = Guid.Parse(userIdClaim.Value);
-            }
-
-            var result = await _businessService.GetBusinessByIdAsync(userId, businessId);
+            var result = await _businessService.GetBusinessByIdAsync(userId == Guid.Empty ? null : userId, businessId);
             
-            if (!result.Success)
-            {
-                return NotFound(result);
-            }
-            
+            if (!result.Success) return NotFound(result);
             return Ok(result);
+        }
+
+        private Guid GetUserIdFromToken()
+        {
+            var idClaim = User.Claims.FirstOrDefault(c => c.Type == "uid" || c.Type == "id" || c.Type == ClaimTypes.NameIdentifier);
+            return idClaim != null ? Guid.Parse(idClaim.Value) : Guid.Empty;
         }
     }
 }

@@ -1,3 +1,5 @@
+using System.Net.Mime;
+
 namespace Personelim.DTOs.Business
 {
     public class BusinessResponse
@@ -8,7 +10,8 @@ namespace Personelim.DTOs.Business
         public string Address { get; set; }
         public string PhoneNumber { get; set; }
         
-        // Yeni Alanlar
+        public string? ImageUrl { get; set; }
+        
         public string LocationName { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
