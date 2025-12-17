@@ -32,10 +32,10 @@ namespace Personelim.Services.Business
                 var businesses = await _context.Businesses
                     .Include(b => b.Province)
                     .Include(b => b.District)
-                    .Include(b => b.Members)        // Üye sayısını hesaplamak için
+                    .Include(b => b.Members)        
                     .Include(b => b.ParentBusiness)
                     .Include(b => b.SubBusinesses)  
-                    .Where(b => b.ParentBusinessId == null) // Sadece Aktif ve Ana İşletmeler
+                    .Where(b => b.ParentBusinessId == null) 
                     .OrderByDescending(b => b.CreatedAt)
                     .ToListAsync();
 
@@ -92,10 +92,7 @@ namespace Personelim.Services.Business
             var response = MapToBusinessResponse(business, userId);
             return ServiceResponse<BusinessResponse>.SuccessResult(response);
         }
-
-        // =========================================================================
-        // 3. UPDATE BUSINESS
-        // =========================================================================
+        
         public async Task<ServiceResponse<BusinessResponse>> UpdateBusinessAsync(Guid userId, Guid businessId, UpdateBusinessRequest request)
         {
             var business = await _context.Businesses
@@ -119,8 +116,7 @@ namespace Personelim.Services.Business
             if (!string.IsNullOrWhiteSpace(request.LocationName)) business.LocationName = request.LocationName.Trim();
             if (request.Latitude.HasValue) business.Latitude = request.Latitude.Value;
             if (request.Longitude.HasValue) business.Longitude = request.Longitude.Value;
-
-            // Resim Yükleme
+            
             if (request.Image != null && request.Image.Length > 0)
             {
                 try
@@ -147,8 +143,7 @@ namespace Personelim.Services.Business
 
             business.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-
-            // Güncel veriyi ilişkilerle tekrar çek
+            
             var updatedBusiness = await _context.Businesses
                 .Include(b => b.Province)
                 .Include(b => b.District)
@@ -300,17 +295,9 @@ namespace Personelim.Services.Business
             }
         }
 
-        // =========================================================================
-        // HELPER MAPPER
-        // =========================================================================
+       
         private BusinessResponse MapToBusinessResponse(Personelim.Models.Business business, Guid? currentUserId)
         {
-            string userRole = "Visitor";
-            if (currentUserId.HasValue && business.Members != null)
-            {
-                var member = business.Members.FirstOrDefault(m => m.UserId == currentUserId);
-                if (member != null) userRole = member.Role.ToString();
-            }
 
             return new BusinessResponse
             {
@@ -327,7 +314,6 @@ namespace Personelim.Services.Business
                 ProvinceName = business.Province?.Name ?? string.Empty,
                 DistrictId = business.DistrictId,
                 DistrictName = business.District?.Name ?? string.Empty,
-                Role = userRole,
                 MemberCount = business.Members?.Count ?? 0,
                 ParentBusinessId = business.ParentBusinessId,
                 ParentBusinessName = business.ParentBusiness?.Name,
