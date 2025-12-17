@@ -25,8 +25,12 @@ namespace Personelim.Services.Business
             _env = env;
         }
         
-        public async Task<ServiceResponse<List<BusinessResponse>>> GetAllBusinessesAsync()
+        // Parametreyi değiştirdim: Artık userId alıyor.
+        public async Task<ServiceResponse<List<BusinessResponse>>> GetAllBusinessesAsync(Guid? userId)
         {
+            if (!userId.HasValue)
+                return ServiceResponse<List<BusinessResponse>>.SuccessResult(new List<BusinessResponse>());
+
             try
             {
                 var businesses = await _context.Businesses
@@ -35,46 +39,33 @@ namespace Personelim.Services.Business
                     .Include(b => b.Members)        
                     .Include(b => b.ParentBusiness)
                     .Include(b => b.SubBusinesses)  
-                    .Where(b => b.ParentBusinessId == null) 
+                   
+                    .Where(b => 
+                        b.ParentBusinessId == null && 
+                        (
+                            b.OwnerId == userId 
+                            || 
+                            (b.IsActive && b.Members.Any(m => m.UserId == userId && m.IsActive))
+                        )
+                    )
                     .OrderByDescending(b => b.CreatedAt)
                     .ToListAsync();
-
-              
+      
                 var responseList = businesses
-                    .Select(b => MapToBusinessResponse(b, null)) 
+                    .Select(b => MapToBusinessResponse(b, userId)) 
                     .ToList();
 
-                return ServiceResponse<List<BusinessResponse>>.SuccessResult(responseList, "İşletmeler listelendi.");
+                return ServiceResponse<List<BusinessResponse>>.SuccessResult(responseList, "İşletmeleriniz listelendi.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Tüm işletmeler listelenirken hata oluştu.");
-                return ServiceResponse<List<BusinessResponse>>.ErrorResult("İşletmeler listelenirken bir hata oluştu.");
+                _logger.LogError(ex, "İşletmeler listelenirken hata oluştu.");
+                return ServiceResponse<List<BusinessResponse>>.ErrorResult("Hata oluştu.");
             }
         }
 
       
-        public async Task<ServiceResponse<List<BusinessResponse>>> GetUserBusinessesAsync(Guid? userId)
-        {
-            if (!userId.HasValue)
-                return ServiceResponse<List<BusinessResponse>>.SuccessResult(new List<BusinessResponse>());
-
-            var businesses = await _context.Businesses
-                .Include(b => b.Province)
-                .Include(b => b.District)
-                .Include(b => b.Members)
-                .Include(b => b.ParentBusiness)
-                .Include(b => b.SubBusinesses)
-                .Where(b => b.OwnerId == userId && b.IsActive && b.ParentBusinessId == null)
-                .OrderByDescending(b => b.CreatedAt)
-                .ToListAsync();
-
-            var responseList = businesses
-                .Select(b => MapToBusinessResponse(b, userId))
-                .ToList();
-
-            return ServiceResponse<List<BusinessResponse>>.SuccessResult(responseList);
-        }
+       
         
         public async Task<ServiceResponse<BusinessResponse>> GetBusinessByIdAsync(Guid? userId, Guid businessId)
         {
@@ -256,6 +247,8 @@ namespace Personelim.Services.Business
         // =========================================================================
         // 5. VERIFY BUSINESS
         // =========================================================================
+        
+
         public async Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, VerifyBusinessRequest request)
         {
             try
@@ -294,8 +287,7 @@ namespace Personelim.Services.Business
                 return ServiceResponse<bool>.ErrorResult("Doğrulama hatası: " + ex.Message);
             }
         }
-
-       
+        
         private BusinessResponse MapToBusinessResponse(Personelim.Models.Business business, Guid? currentUserId)
         {
 
