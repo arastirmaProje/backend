@@ -15,6 +15,7 @@ using Personelim.Services.Leave;
 using Personelim.Services.Task;
 using System.Text;
 using Microsoft.Extensions.FileProviders;
+using Personelim.Services.Shift;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -78,6 +79,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IShiftService, ShiftService>();
 
 // =======================================================
 // AUTHENTICATION & AUTHORIZATION
