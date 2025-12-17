@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "NR6ZZ5MhSQhaKP9ZJ+nWkJlQrbxD64pfcfxmcagx3lE=",
+  "Hash": "yuSXgeFSXQQgmTgl05bNSXx+urcvIhf7tzOP0fpkKa8=",
   "Source": "Personelim",
   "BasePath": "_content/Personelim",
   "Mode": "Default",
@@ -16,6 +16,25 @@
     }
   ],
   "Assets": [
+    {
+      "Identity": "/Users/furkanozkan/RiderProjects/Personelim/Personelim/wwwroot/uploads/user-avatars/c0891285-2324-4b7b-8ee5-b172d856aab9_4e38c819-bebb-41d7-925a-5a49b58fee4b.png",
+      "SourceId": "Personelim",
+      "SourceType": "Discovered",
+      "ContentRoot": "/Users/furkanozkan/RiderProjects/Personelim/Personelim/wwwroot/",
+      "BasePath": "_content/Personelim",
+      "RelativePath": "uploads/user-avatars/c0891285-2324-4b7b-8ee5-b172d856aab9_4e38c819-bebb-41d7-925a-5a49b58fee4b.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot/uploads/user-avatars/c0891285-2324-4b7b-8ee5-b172d856aab9_4e38c819-bebb-41d7-925a-5a49b58fee4b.png"
+    },
     {
       "Identity": "/Users/furkanozkan/RiderProjects/Personelim/Personelim/wwwroot/uploads/user-avatars/c0891285-2324-4b7b-8ee5-b172d856aab9_94fc8193-27e0-412f-80da-58246ee5158c.jpeg",
       "SourceId": "Personelim",

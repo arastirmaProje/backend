@@ -20,12 +20,6 @@ namespace Personelim.Services.Task
         {
             try
             {
-                // 1. Yetki Kontrolü: Görevi veren kişi işletme sahibi (Owner) mi?
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == currentUserId &&
-                    bm.BusinessId == request.BusinessId &&
-                    bm.Role == UserRole.Owner && 
-                    bm.IsActive);
                 
                 var isEmployee = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == request.AssignedToUserId &&

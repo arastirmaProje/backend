@@ -30,7 +30,6 @@ namespace Personelim.Services.Auth
             _context = context;
             _configuration = configuration;
             _emailService = emailService;
-            _env = env; // EKLENDİ
         }
 
         public async Task<ServiceResponse<AuthResponse>> RegisterAsync(RegisterRequest request)
@@ -43,6 +42,7 @@ namespace Personelim.Services.Auth
                 {
                     return ServiceResponse<AuthResponse>.ErrorResult("Bu email adresi zaten kullanımda.");
                 }
+                
                 
                 string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
                 
@@ -68,6 +68,7 @@ namespace Personelim.Services.Auth
                     Email = newUser.Email,
                     FirstName = newUser.FirstName,
                     LastName = newUser.LastName,
+                    Role ="Owner" ,
                     ImageUrl = newUser.ImageUrl,
                     Token = token.Token,
                     ExpiresAt = token.ExpiresAt
@@ -81,41 +82,62 @@ namespace Personelim.Services.Auth
         }
 
         public async Task<ServiceResponse<AuthResponse>> LoginAsync(LoginRequest request)
+{
+    try
+    {
+        // 1. Önce kullanıcıyı bul
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
+
+        // 2. Kullanıcı kontrolünü HEMEN yap (Yoksa aşağıda user.Id hatası alırsın)
+        if (user == null || !user.IsActive)
         {
-            try
-            {
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
-                if (user == null || !user.IsActive)
-                {
-                    return ServiceResponse<AuthResponse>.ErrorResult("Email veya şifre hatalı");
-                }
-                if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-                {
-                    return ServiceResponse<AuthResponse>.ErrorResult("Email veya şifre hatalı");
-                }
-                
-                user.LastLoginAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-                
-                var token = GenerateJwtToken(user);
-                var response = new AuthResponse
-                {
-                    UserId = user.Id,
-                    Email = user.Email,
-                    FirstName = user.FirstName,
-                    LastName = user.LastName,
-                    ImageUrl = user.ImageUrl, // Response'a resim eklendi
-                    Token = token.Token,
-                    ExpiresAt = token.ExpiresAt
-                };
-                return ServiceResponse<AuthResponse>.SuccessResult(response, "Giriş başarılı");
-            }
-            catch (Exception ex)
-            {
-                return ServiceResponse<AuthResponse>.ErrorResult("Giriş sırasında hata oluştu", ex.Message);
-            }
+            return ServiceResponse<AuthResponse>.ErrorResult("Email veya şifre hatalı");
         }
+
+        // 3. Şifre kontrolünü yap
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            return ServiceResponse<AuthResponse>.ErrorResult("Email veya şifre hatalı");
+        }
+
+        // 4. Kullanıcı doğrulandığına göre şimdi rolüne bakabiliriz
+        var membership = await _context.BusinessMembers
+            .FirstOrDefaultAsync(bm => bm.UserId == user.Id && bm.IsActive);
+        
+        // Varsayılan olarak "Owner" dedik (Henüz şirketi yoksa kurması için)
+        // Eğer üyeliği varsa gerçek rolünü alıyoruz.
+        string userRole = "Owner"; 
+
+        if (membership != null)
+        {
+            userRole = membership.Role.ToString();
+        }
+        
+        // 5. Giriş saatini güncelle
+        user.LastLoginAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        
+        var token = GenerateJwtToken(user);
+        
+        var response = new AuthResponse
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Role = userRole, 
+            ImageUrl = user.ImageUrl, 
+            Token = token.Token,
+            ExpiresAt = token.ExpiresAt
+        };
+        return ServiceResponse<AuthResponse>.SuccessResult(response, "Giriş başarılı");
+    }
+    catch (Exception ex)
+    {
+        return ServiceResponse<AuthResponse>.ErrorResult("Giriş sırasında hata oluştu", ex.Message);
+    }
+}
 
         public async Task<ServiceResponse<UserProfileResponse>> GetUserProfileAsync(Guid userId)
         {

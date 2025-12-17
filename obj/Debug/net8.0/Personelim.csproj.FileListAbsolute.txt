@@ -122,3 +122,4 @@
 /Users/furkanozkan/RiderProjects/Personelim/Personelim/bin/Debug/net8.0/SendGrid.dll
 /Users/furkanozkan/RiderProjects/Personelim/Personelim/bin/Debug/net8.0/StarkbankEcdsa.dll
 /Users/furkanozkan/RiderProjects/Personelim/Personelim/bin/Debug/net8.0/Personelim.staticwebassets.runtime.json
+/Users/furkanozkan/RiderProjects/Personelim/Personelim/bin/Debug/net8.0/CloudinaryDotNet.dll
