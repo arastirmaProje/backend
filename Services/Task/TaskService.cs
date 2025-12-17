@@ -3,7 +3,7 @@ using Personelim.Data;
 using Personelim.DTOs.Task;
 using Personelim.Helpers;
 using Personelim.Models;
-using Personelim.Models.Enums;
+using Personelim.Models.Enums; // Eğer Enum kullanıyorsanız
 
 namespace Personelim.Services.Task
 {
@@ -16,11 +16,12 @@ namespace Personelim.Services.Task
             _context = context;
         }
 
+      
         public async Task<ServiceResponse<TaskResponse>> CreateTaskAsync(Guid currentUserId, CreateTaskRequest request)
         {
             try
             {
-                
+               
                 var isEmployee = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == request.AssignedToUserId &&
                     bm.BusinessId == request.BusinessId &&
@@ -36,7 +37,8 @@ namespace Personelim.Services.Task
                     return ServiceResponse<TaskResponse>.ErrorResult("Bitiş tarihi başlangıç tarihinden önce olamaz.");
                 }
 
-           
+              
+               
                 var newTask = new TaskItem
                 {
                     BusinessId = request.BusinessId,
@@ -44,17 +46,17 @@ namespace Personelim.Services.Task
                     AssignedToUserId = request.AssignedToUserId,
                     Title = request.Title,
                     Description = request.Description,
+                    
+                    Status = request.EndDate < DateTime.UtcNow ? "Süresi Geçti" : "Beklemede",
+                    
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
-                    Difficulty = request.Difficulty,
-                    Status = Models.Enums.TaskStatus.Pending, 
-                    Thoughts = "", 
                     CreatedAt = DateTime.UtcNow
                 };
 
                 await _context.TaskItems.AddAsync(newTask);
                 await _context.SaveChangesAsync();
-                
+
                 return await GetTaskByIdInternal(newTask.Id);
             }
             catch (Exception ex)
@@ -62,7 +64,7 @@ namespace Personelim.Services.Task
                 return ServiceResponse<TaskResponse>.ErrorResult("Görev oluşturulurken hata oluştu.", ex.Message);
             }
         }
-
+        
         public async Task<ServiceResponse<List<TaskResponse>>> GetTasksByBusinessAsync(Guid currentUserId, Guid businessId)
         {
             try
@@ -70,27 +72,30 @@ namespace Personelim.Services.Task
                 var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == currentUserId &&
                     bm.BusinessId == businessId &&
-                    bm.Role == UserRole.Owner && 
+                    bm.Role == UserRole.Owner &&
                     bm.IsActive);
 
                 if (!isOwner) return ServiceResponse<List<TaskResponse>>.ErrorResult("Bu işletmenin görevlerini görüntüleme yetkiniz yok.");
 
+                
                 var tasks = await _context.TaskItems
                     .Include(t => t.AssignedToUser)
                     .Include(t => t.AssignedByUser)
                     .Where(t => t.BusinessId == businessId)
                     .OrderByDescending(t => t.CreatedAt)
-                    .Select(t => MapToResponse(t))
-                    .ToListAsync();
+                    .ToListAsync(); 
 
-                return ServiceResponse<List<TaskResponse>>.SuccessResult(tasks);
+              
+                var responseList = tasks.Select(t => MapToResponse(t)).ToList();
+
+                return ServiceResponse<List<TaskResponse>>.SuccessResult(responseList);
             }
             catch (Exception ex)
             {
                 return ServiceResponse<List<TaskResponse>>.ErrorResult("Görevler listelenirken hata oluştu.", ex.Message);
             }
         }
-
+        
         public async Task<ServiceResponse<List<TaskResponse>>> GetMyTasksAsync(Guid currentUserId)
         {
             try
@@ -98,19 +103,21 @@ namespace Personelim.Services.Task
                 var tasks = await _context.TaskItems
                     .Include(t => t.AssignedToUser)
                     .Include(t => t.AssignedByUser)
-                    .Where(t => t.AssignedToUserId == currentUserId) 
-                    .OrderBy(t => t.EndDate) 
-                    .Select(t => MapToResponse(t))
-                    .ToListAsync();
+                    .Where(t => t.AssignedToUserId == currentUserId)
+                    .OrderBy(t => t.EndDate)
+                    .ToListAsync(); 
 
-                return ServiceResponse<List<TaskResponse>>.SuccessResult(tasks);
+              
+                var responseList = tasks.Select(t => MapToResponse(t)).ToList();
+
+                return ServiceResponse<List<TaskResponse>>.SuccessResult(responseList);
             }
             catch (Exception ex)
             {
                 return ServiceResponse<List<TaskResponse>>.ErrorResult("Görevleriniz alınırken hata oluştu.", ex.Message);
             }
         }
-
+        
         public async Task<ServiceResponse<TaskResponse>> UpdateTaskStatusAsync(Guid currentUserId, Guid taskId, UpdateTaskStatusRequest request)
         {
             try
@@ -123,10 +130,9 @@ namespace Personelim.Services.Task
                 if (task == null) return ServiceResponse<TaskResponse>.ErrorResult("Görev bulunamadı.");
 
                 bool isAssignee = task.AssignedToUserId == currentUserId;
-                
-                bool isOwner = await _context.BusinessMembers.AnyAsync(bm => 
-                    bm.UserId == currentUserId && 
-                    bm.BusinessId == task.BusinessId && 
+                bool isOwner = await _context.BusinessMembers.AnyAsync(bm =>
+                    bm.UserId == currentUserId &&
+                    bm.BusinessId == task.BusinessId &&
                     bm.Role == UserRole.Owner &&
                     bm.IsActive);
 
@@ -136,6 +142,7 @@ namespace Personelim.Services.Task
                 }
                 
                 task.Status = request.Status;
+
                 if (!string.IsNullOrEmpty(request.Thoughts))
                 {
                     task.Thoughts = request.Thoughts;
@@ -143,7 +150,7 @@ namespace Personelim.Services.Task
                 task.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
-
+                
                 return ServiceResponse<TaskResponse>.SuccessResult(MapToResponse(task), "Görev güncellendi.");
             }
             catch (Exception ex)
@@ -152,13 +159,14 @@ namespace Personelim.Services.Task
             }
         }
 
+       
         public async Task<ServiceResponse<bool>> DeleteTaskAsync(Guid currentUserId, Guid taskId)
         {
             try
             {
                 var task = await _context.TaskItems.FindAsync(taskId);
                 if (task == null) return ServiceResponse<bool>.ErrorResult("Görev bulunamadı.");
-                
+
                 var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == currentUserId &&
                     bm.BusinessId == task.BusinessId &&
@@ -169,7 +177,6 @@ namespace Personelim.Services.Task
 
                 _context.TaskItems.Remove(task);
                 await _context.SaveChangesAsync();
-
                 return ServiceResponse<bool>.SuccessResult(true, "Görev silindi.");
             }
             catch (Exception ex)
@@ -177,10 +184,17 @@ namespace Personelim.Services.Task
                 return ServiceResponse<bool>.ErrorResult("Silme işleminde hata.", ex.Message);
             }
         }
-        
+
         private static TaskResponse MapToResponse(TaskItem t)
         {
-            bool isOverdue = t.Status != Models.Enums.TaskStatus.Completed && t.EndDate < DateTime.UtcNow;
+            bool isTimeUp = t.EndDate < DateTime.UtcNow;
+
+            string currentStatus = t.Status?.ToString() ?? "Beklemede";
+
+            if (isTimeUp && currentStatus != "Tamamlandı" && currentStatus != "Completed")
+            {
+                currentStatus = "Süresi Geçti";
+            }
 
             return new TaskResponse
             {
@@ -191,23 +205,27 @@ namespace Personelim.Services.Task
                 AssignedByName = t.AssignedByUser != null ? $"{t.AssignedByUser.FirstName} {t.AssignedByUser.LastName}" : "Bilinmiyor",
                 StartDate = t.StartDate,
                 EndDate = t.EndDate,
-                Status = t.Status.ToString(),
+                
+                Status = currentStatus, 
+                
                 Difficulty = t.Difficulty.ToString(),
+                
                 Thoughts = t.Thoughts,
-                IsOverdue = isOverdue,
+                IsOverdue = isTimeUp, 
                 CreatedAt = t.CreatedAt
             };
         }
+
         private async Task<ServiceResponse<TaskResponse>> GetTaskByIdInternal(Guid taskId)
         {
-             var task = await _context.TaskItems
-                    .Include(t => t.AssignedToUser)
-                    .Include(t => t.AssignedByUser)
-                    .FirstOrDefaultAsync(t => t.Id == taskId);
-             
-             if(task == null) return ServiceResponse<TaskResponse>.ErrorResult("Hata oluştu");
-             
-             return ServiceResponse<TaskResponse>.SuccessResult(MapToResponse(task), "Görev oluşturuldu.");
+            var task = await _context.TaskItems
+                   .Include(t => t.AssignedToUser)
+                   .Include(t => t.AssignedByUser)
+                   .FirstOrDefaultAsync(t => t.Id == taskId);
+
+            if (task == null) return ServiceResponse<TaskResponse>.ErrorResult("Hata oluştu");
+
+            return ServiceResponse<TaskResponse>.SuccessResult(MapToResponse(task), "Görev oluşturuldu.");
         }
     }
 }

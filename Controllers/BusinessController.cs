@@ -45,13 +45,24 @@ namespace Personelim.Controllers
             return BadRequest(result);
         }
         
-        // GÜNCELLEME METODU EKLENDİ
+        [HttpGet] 
+        public async Task<IActionResult> GetAllBusinesses()
+        {
+            // Eğer sadece giriş yapmışlar görsün istersen başına [Authorize] ekle.
+            // Şu an herkese açık (Public) olarak yazdım.
+            
+            var result = await _businessService.GetAllBusinessesAsync();
+
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
         [Authorize]
-        [HttpPut("{businessId}")] // Örn: api/business/{guid}
+        [HttpPut("{businessId}")] 
         public async Task<IActionResult> UpdateBusiness(Guid businessId, [FromForm] UpdateBusinessRequest request)
         {
-            // NOT: [FromForm] kullanıldığı için JSON değil, form-data olarak gönderilmelidir.
-            // Bu sayede hem text verileri hem de dosya (Image) aynı anda alınabilir.
             
             var userId = GetUserIdFromToken();
             if (userId == Guid.Empty) return Unauthorized();
@@ -66,8 +77,6 @@ namespace Personelim.Controllers
         public async Task<IActionResult> GetBusinessById(Guid businessId)
         {
             var userId = GetUserIdFromToken();
-            // userId null olsa bile (anonim görüntüleme varsa) GetBusinessByIdAsync çalışır, yoksa Guid.Empty döner.
-            // Serviste userId nullable tanımlı değilse burada Guid.Empty gidecektir.
             
             var result = await _businessService.GetBusinessByIdAsync(userId == Guid.Empty ? null : userId, businessId);
             

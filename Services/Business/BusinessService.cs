@@ -24,6 +24,34 @@ namespace Personelim.Services.Business
             _logger = logger;
             _env = env;
         }
+        
+        public async Task<ServiceResponse<List<BusinessResponse>>> GetAllBusinessesAsync()
+        {
+            try
+            {
+                var businesses = await _context.Businesses
+                    .Include(b => b.Province)
+                    .Include(b => b.District)
+                    .Include(b => b.Members)        // Üye sayısını hesaplamak için
+                    .Include(b => b.ParentBusiness)
+                    .Include(b => b.SubBusinesses)  // Şube sayısını hesaplamak için
+                    .Where(b => b.IsActive && b.ParentBusinessId == null) // Sadece Aktif ve Ana İşletmeler
+                    .OrderByDescending(b => b.CreatedAt)
+                    .ToListAsync();
+
+                // Genel listede kullanıcıya özel role bakmaya gerek yok, o yüzden userId: null gönderiyoruz.
+                var responseList = businesses
+                    .Select(b => MapToBusinessResponse(b, null)) 
+                    .ToList();
+
+                return ServiceResponse<List<BusinessResponse>>.SuccessResult(responseList, "İşletmeler listelendi.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Tüm işletmeler listelenirken hata oluştu.");
+                return ServiceResponse<List<BusinessResponse>>.ErrorResult("İşletmeler listelenirken bir hata oluştu.");
+            }
+        }
 
       
         public async Task<ServiceResponse<List<BusinessResponse>>> GetUserBusinessesAsync(Guid? userId)

@@ -10,6 +10,5 @@ namespace Personelim.DTOs.Task
         public string Description { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
-        public TaskDifficulty Difficulty { get; set; }
     }
 }

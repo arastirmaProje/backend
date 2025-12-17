@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using Personelim.Models.Enums;
-using TaskStatus = Personelim.Models.Enums.TaskStatus;
+
 
 namespace Personelim.Models
 {
@@ -27,8 +26,8 @@ namespace Personelim.Models
         public DateTime StartDate { get; set; } = DateTime.UtcNow; 
         public DateTime EndDate { get; set; } 
 
-        public TaskStatus Status { get; set; } = TaskStatus.Pending;
-        public TaskDifficulty Difficulty { get; set; } = TaskDifficulty.Medium; 
+        public string Status { get; set; } 
+        public string Difficulty { get; set; } 
         public string? Thoughts { get; set; } 
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
