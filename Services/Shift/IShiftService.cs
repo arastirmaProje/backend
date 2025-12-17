@@ -5,7 +5,7 @@ namespace Personelim.Services.Shift
 {
     public interface IShiftService
     {
-        Task<ServiceResponse<ShiftResponse>> CreateShiftAsync(Guid currentUserId, CreateShiftRequest request);
+        Task<ServiceResponse<ShiftResponse>> ToggleShiftAsync(Guid userId, Guid businessId);
         Task<ServiceResponse<List<ShiftResponse>>> GetShiftsByBusinessAsync(Guid currentUserId, Guid businessId);
     }
 }

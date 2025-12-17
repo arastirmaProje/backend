@@ -15,7 +15,7 @@ namespace Personelim.Models
         public User User { get; set; }
 
         public DateTime StartTime { get; set; }
-        public DateTime EndTime { get; set; }
+        public DateTime? EndTime { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

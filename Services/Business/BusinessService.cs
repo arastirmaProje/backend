@@ -34,12 +34,12 @@ namespace Personelim.Services.Business
                     .Include(b => b.District)
                     .Include(b => b.Members)        // Üye sayısını hesaplamak için
                     .Include(b => b.ParentBusiness)
-                    .Include(b => b.SubBusinesses)  // Şube sayısını hesaplamak için
-                    .Where(b => b.IsActive && b.ParentBusinessId == null) // Sadece Aktif ve Ana İşletmeler
+                    .Include(b => b.SubBusinesses)  
+                    .Where(b => b.ParentBusinessId == null) // Sadece Aktif ve Ana İşletmeler
                     .OrderByDescending(b => b.CreatedAt)
                     .ToListAsync();
 
-                // Genel listede kullanıcıya özel role bakmaya gerek yok, o yüzden userId: null gönderiyoruz.
+              
                 var responseList = businesses
                     .Select(b => MapToBusinessResponse(b, null)) 
                     .ToList();
