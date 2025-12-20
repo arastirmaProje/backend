@@ -30,6 +30,8 @@ namespace Personelim.Services.Auth
             _context = context;
             _configuration = configuration;
             _emailService = emailService;
+            _env = env;
+            
         }
 
         public async Task<ServiceResponse<AuthResponse>> RegisterAsync(RegisterRequest request)
