@@ -21,6 +21,7 @@ namespace Personelim.Data
         public DbSet<TaskItem> TaskItems { get; set; }
         public DbSet<Shift> Shifts { get; set; }
         
+        
         public DbSet<BusinessDocument> BusinessDocuments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
