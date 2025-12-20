@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-// using Personelim.DTOs.Shift; // Artık Request body kullanmadığımız için buna gerek kalmayabilir
+using Personelim.DTOs.Shift;
 using Personelim.Services.Shift;
 using System.Security.Claims;
 
@@ -8,7 +8,7 @@ namespace Personelim.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] 
+    [Authorize]
     public class ShiftController : ControllerBase
     {
         private readonly IShiftService _shiftService;
@@ -18,32 +18,35 @@ namespace Personelim.Controllers
             _shiftService = shiftService;
         }
 
-        
-        [HttpPost("toggle")]
-        public async Task<IActionResult> ToggleShift([FromQuery] Guid businessId)
+        // START/END göndererek mesai kaydet
+        // POST: /api/Shift
+        [HttpPost]
+        public async Task<IActionResult> SubmitShift([FromBody] SubmitShiftRequest request)
         {
             var userId = GetUserIdFromToken();
-            
-           
-            var result = await _shiftService.ToggleShiftAsync(userId, businessId);
-            
-            if (!result.Success) return BadRequest(result);
-            return Ok(result);
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _shiftService.SubmitShiftAsync(userId, request);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
-        [HttpGet("business/{businessId}")]
-        public async Task<IActionResult> GetShiftsByBusiness(Guid businessId)
+        // Giriş yapan kullanıcının mesaileri
+        // GET: /api/Shift/my?businessId=...
+        [HttpGet("my")]
+        public async Task<IActionResult> GetMyShifts([FromQuery] Guid businessId)
         {
             var userId = GetUserIdFromToken();
-            var result = await _shiftService.GetShiftsByBusinessAsync(userId, businessId);
-            
-            if (!result.Success) return BadRequest(result);
-            return Ok(result);
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _shiftService.GetMyShiftsAsync(userId, businessId);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
-       
+
         private Guid GetUserIdFromToken()
         {
-            var idClaim = User.Claims.FirstOrDefault(c => c.Type == "uid" || c.Type == "id" || c.Type == ClaimTypes.NameIdentifier);
+            var idClaim = User.Claims.FirstOrDefault(c =>
+                c.Type == "uid" || c.Type == "id" || c.Type == ClaimTypes.NameIdentifier);
+
             return idClaim != null ? Guid.Parse(idClaim.Value) : Guid.Empty;
         }
     }

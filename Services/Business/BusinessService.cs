@@ -314,14 +314,98 @@ namespace Personelim.Services.Business
                 CreatedAt = business.CreatedAt
             };
         }
+        
+        public async Task<ServiceResponse<BusinessDocumentResponse>> UploadBusinessDocumentAsync(
+    Guid userId, Guid businessId, UploadBusinessDocumentRequest request)
+{
+    var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
+    if (business == null) return ServiceResponse<BusinessDocumentResponse>.ErrorResult("İşletme bulunamadı.");
+    if (business.OwnerId != userId) return ServiceResponse<BusinessDocumentResponse>.ErrorResult("Yetkiniz yok.");
 
-        // Henüz kullanılmayan metodlar
-        public Task<ServiceResponse<List<BusinessResponse>>> GetSubBusinessesAsync(Guid? userId, Guid parentBusinessId) => throw new NotImplementedException();
-        public Task<ServiceResponse<BusinessResponse>> UpdateSubBusinessAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId, UpdateBusinessRequest request) => throw new NotImplementedException();
-        public Task<ServiceResponse<bool>> DeleteBusinessAsync(Guid? userId, Guid businessId) => throw new NotImplementedException();
-        public Task<ServiceResponse<bool>> DeleteSubBusinessAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId) => throw new NotImplementedException();
-        public Task<ServiceResponse<BusinessResponse>> GetSubBusinessByIdAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId) => throw new NotImplementedException();
-        public Task<ServiceResponse<BusinessResponse>> CreateLocationAsync(Guid? userId, Guid parentBusinessId, CreateLocationRequest request) => throw new NotImplementedException();
-        public Task<ServiceResponse<BusinessResponse>> UpdateSubBusinessAsync(Guid? userId, Guid parentBusinessId, Guid subBusinessId, UpdateLocationRequest request) => throw new NotImplementedException();
+    if (request.File == null || request.File.Length == 0)
+        return ServiceResponse<BusinessDocumentResponse>.ErrorResult("Dosya seçilmedi.");
+
+    var ext = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+    var allowed = new HashSet<string> { ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg" };
+    if (!allowed.Contains(ext))
+        return ServiceResponse<BusinessDocumentResponse>.ErrorResult("Geçersiz dosya uzantısı.");
+
+    var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+    var uploadFolder = Path.Combine(webRoot, "uploads", "business-documents", businessId.ToString());
+    Directory.CreateDirectory(uploadFolder);
+
+    var uniqueName = $"{Guid.NewGuid()}{ext}";
+    var fullPath = Path.Combine(uploadFolder, uniqueName);
+
+    using (var stream = new FileStream(fullPath, FileMode.Create))
+        await request.File.CopyToAsync(stream);
+
+    var dbPath = Path.Combine("uploads", "business-documents", businessId.ToString(), uniqueName)
+        .Replace("\\", "/");
+
+    var doc = new BusinessDocument
+    {
+        BusinessId = businessId,
+        DocumentType = request.DocumentType,
+        FileName = request.File.FileName,
+        FilePath = dbPath,
+        FileExtension = ext,
+        UploadedAt = DateTime.UtcNow,
+        IsActive = true
+    };
+
+    _context.BusinessDocuments.Add(doc);
+    await _context.SaveChangesAsync();
+
+    return ServiceResponse<BusinessDocumentResponse>.SuccessResult(new BusinessDocumentResponse
+    {
+        Id = doc.Id,
+        DocumentType = doc.DocumentType,
+        FileName = doc.FileName,
+        FileUrl = "/" + doc.FilePath,   // client için url
+        UploadedAt = doc.UploadedAt
+    }, "Belge yüklendi.");
+}
+
+public async Task<ServiceResponse<List<BusinessDocumentResponse>>> GetBusinessDocumentsAsync(Guid userId, Guid businessId)
+{
+    var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
+    if (business == null) return ServiceResponse<List<BusinessDocumentResponse>>.ErrorResult("İşletme bulunamadı.");
+
+    // istersen owner/member kontrolü ekle
+    var docs = await _context.BusinessDocuments
+        .Where(d => d.BusinessId == businessId && d.IsActive)
+        .OrderByDescending(d => d.UploadedAt)
+        .Select(d => new BusinessDocumentResponse
+        {
+            Id = d.Id,
+            DocumentType = d.DocumentType,
+            FileName = d.FileName,
+            FileUrl = "/" + d.FilePath,
+            UploadedAt = d.UploadedAt
+        })
+        .ToListAsync();
+
+    return ServiceResponse<List<BusinessDocumentResponse>>.SuccessResult(docs);
+}
+
+public async Task<ServiceResponse<bool>> DeleteBusinessDocumentAsync(Guid userId, Guid documentId)
+{
+    var doc = await _context.BusinessDocuments
+        .Include(d => d.Business)
+        .FirstOrDefaultAsync(d => d.Id == documentId && d.IsActive);
+
+    if (doc == null) return ServiceResponse<bool>.ErrorResult("Belge bulunamadı.");
+    if (doc.Business.OwnerId != userId) return ServiceResponse<bool>.ErrorResult("Yetkiniz yok.");
+
+    var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+    var fullPath = Path.Combine(webRoot, doc.FilePath); // doc.FilePath "uploads/..." olmalı
+    if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
+
+    doc.IsActive = false;
+    await _context.SaveChangesAsync();
+    return ServiceResponse<bool>.SuccessResult(true, "Belge silindi.");
+}
+
     }
 }

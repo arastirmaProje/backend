@@ -17,7 +17,6 @@ namespace Personelim.Controllers
             _businessService = businessService;
         }
         
-        // ŞİRKET OLUŞTURMA
         [Authorize]
         [HttpPost("create-business")] 
         public async Task<IActionResult> CreateBusiness([FromBody] CreateBusinessRequest request)
@@ -78,11 +77,38 @@ namespace Personelim.Controllers
         public async Task<IActionResult> GetBusinessById(Guid businessId)
         {
             var userId = GetUserIdFromToken();
-            // userId boş gelebilir (Ziyaretçi), sorun değil null gönderiyoruz
+            
             var result = await _businessService.GetBusinessByIdAsync(userId == Guid.Empty ? null : userId, businessId);
             
             if (!result.Success) return NotFound(result);
             return Ok(result);
+        }
+        
+        [Authorize]
+        [HttpPost("{businessId}/documents")]
+        public async Task<IActionResult> UploadBusinessDocument(Guid businessId, [FromForm] UploadBusinessDocumentRequest request)
+        {
+            var userId = GetUserIdFromToken();
+            var result = await _businessService.UploadBusinessDocumentAsync(userId, businessId, request);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [Authorize]
+        [HttpGet("{businessId}/documents")]
+        public async Task<IActionResult> GetBusinessDocuments(Guid businessId)
+        {
+            var userId = GetUserIdFromToken();
+            var result = await _businessService.GetBusinessDocumentsAsync(userId, businessId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [Authorize]
+        [HttpDelete("documents/{documentId}")]
+        public async Task<IActionResult> DeleteBusinessDocument(Guid documentId)
+        {
+            var userId = GetUserIdFromToken();
+            var result = await _businessService.DeleteBusinessDocumentAsync(userId, documentId);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
         private Guid GetUserIdFromToken()

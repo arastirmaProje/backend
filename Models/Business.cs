@@ -32,7 +32,7 @@ namespace Personelim.Models
         public ICollection<Business> SubBusinesses { get; set; }
         public ICollection<BusinessMember> Members { get; set; }
         public ICollection<Invitation> Invitations { get; set; }
- 
+        public ICollection<BusinessDocument> Documents { get; set; } = new List<BusinessDocument>();
         public Business()
         {
             Id = Guid.NewGuid();

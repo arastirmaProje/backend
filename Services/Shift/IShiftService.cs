@@ -1,11 +1,11 @@
 using Personelim.DTOs.Shift;
-using Personelim.Helpers; // ServiceResponse yapın burada ise
+using Personelim.Helpers;
 
 namespace Personelim.Services.Shift
 {
     public interface IShiftService
     {
-        Task<ServiceResponse<ShiftResponse>> ToggleShiftAsync(Guid userId, Guid businessId);
-        Task<ServiceResponse<List<ShiftResponse>>> GetShiftsByBusinessAsync(Guid currentUserId, Guid businessId);
+        Task<ServiceResponse<ShiftResponse>> SubmitShiftAsync(Guid userId, SubmitShiftRequest request);
+        Task<ServiceResponse<List<ShiftResponse>>> GetMyShiftsAsync(Guid userId, Guid businessId);
     }
 }
