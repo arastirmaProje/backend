@@ -27,7 +27,7 @@ namespace Personelim.Models
         public DateTime EndDate { get; set; } 
 
         public string Status { get; set; } 
-        public string Difficulty { get; set; } 
+        public string? Difficulty { get; set; } 
         public string? Thoughts { get; set; } 
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -59,6 +59,11 @@ namespace Personelim.Services.Task
 
                 return await GetTaskByIdInternal(newTask.Id);
             }
+            catch (DbUpdateException ex)
+            {
+                var detail = ex.InnerException?.Message ?? ex.Message;
+                return ServiceResponse<TaskResponse>.ErrorResult("Görev oluşturulurken hata oluştu.", detail);
+            }
             catch (Exception ex)
             {
                 return ServiceResponse<TaskResponse>.ErrorResult("Görev oluşturulurken hata oluştu.", ex.Message);
@@ -208,7 +213,7 @@ namespace Personelim.Services.Task
                 
                 Status = currentStatus, 
                 
-                Difficulty = t.Difficulty.ToString(),
+                Difficulty = string.IsNullOrWhiteSpace(t.Difficulty) ? "-" : t.Difficulty,
                 
                 Thoughts = t.Thoughts,
                 IsOverdue = isTimeUp, 
