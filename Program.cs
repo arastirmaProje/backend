@@ -80,10 +80,14 @@ builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IShiftService, ShiftService>();
+builder.Services.AddScoped<Personelim.Services.Performance.IPerformanceService, Personelim.Services.Performance.PerformanceService>();
 
-// =======================================================
-// AUTHENTICATION & AUTHORIZATION
-// =======================================================
+builder.Services.AddHttpClient("AiPerformance", c =>
+{
+    c.BaseAddress = new Uri("https://personelim-ai-api.onrender.com/api/performans");
+    c.Timeout = TimeSpan.FromSeconds(60);
+});
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

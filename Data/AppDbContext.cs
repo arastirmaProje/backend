@@ -20,7 +20,7 @@ namespace Personelim.Data
         public DbSet<MemberLeave> MemberLeaves { get; set; }
         public DbSet<TaskItem> TaskItems { get; set; }
         public DbSet<Shift> Shifts { get; set; }
-        
+        public DbSet<PerformanceReport> PerformanceReports { get; set; }
         
         public DbSet<BusinessDocument> BusinessDocuments { get; set; }
 

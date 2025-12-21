@@ -37,6 +37,7 @@ namespace Personelim.Services.Leave
                 Description = request.Description,
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
+                DayCount = CalculateLeaveDays(request.StartDate, request.EndDate), // <-- EKLE
                 Status = LeaveStatus.Pending
             };
 
@@ -58,8 +59,6 @@ namespace Personelim.Services.Leave
                 .OrderByDescending(l => l.CreatedAt)
                 .ToListAsync();
 
-            // İsim bilgisi için user çekmemize gerek yok, kendi izinleri zaten
-            // Ancak genel map fonksiyonu için isim gerekirse boş geçebiliriz veya user çekebilirdik.
             var list = leaves.Select(l => MapToResponse(l, "Siz")).ToList();
             
             return ServiceResponse<List<LeaveResponse>>.SuccessResult(list);
@@ -67,7 +66,7 @@ namespace Personelim.Services.Leave
 
         public async Task<ServiceResponse<List<LeaveResponse>>> GetBusinessLeavesAsync(Guid userId, Guid businessId)
         {
-            // Yetki Kontrolü: Sadece Owner (veya Manager) görebilir
+           
             var isOwner = await _context.BusinessMembers
                 .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == businessId && bm.Role == UserRole.Owner && bm.IsActive);
 
@@ -93,8 +92,7 @@ namespace Personelim.Services.Leave
                 .FirstOrDefaultAsync(l => l.Id == leaveId);
 
             if (leave == null) return ServiceResponse<LeaveResponse>.ErrorResult("İzin talebi bulunamadı.");
-
-            // İşlemi yapan kişi o işletmenin sahibi mi?
+            
             var isOwner = await _context.BusinessMembers
                 .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == leave.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
 
@@ -121,10 +119,7 @@ namespace Personelim.Services.Leave
                 .FirstOrDefaultAsync(l => l.Id == leaveId);
 
             if (leave == null) return ServiceResponse<bool>.ErrorResult("Talep bulunamadı.");
-
-            // Silme Kuralı:
-            // 1. Sahibi silebilir (Eğer henüz onaylanmadıysa - Pending)
-            // 2. İşletme sahibi silebilir.
+            
             
             bool isOwner = await _context.BusinessMembers
                 .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == leave.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
@@ -157,11 +152,19 @@ namespace Personelim.Services.Leave
                 Description = leave.Description,
                 StartDate = leave.StartDate,
                 EndDate = leave.EndDate,
-                DayCount = dayDiff,
+                DayCount = leave.DayCount,
                 Status = leave.Status.ToString(),
                 RejectionReason = leave.RejectionReason,
                 CreatedAt = leave.CreatedAt
             };
+        }
+        
+        private static int CalculateLeaveDays(DateTime start, DateTime end)
+        {
+            var s = start.Date;
+            var e = end.Date;
+            var days = (e - s).Days + 1; 
+            return days < 1 ? 1 : days;
         }
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Personelim.Data;
@@ -11,9 +12,11 @@ using Personelim.Data;
 namespace Personelim.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251221114937_AddLeaveDayCount")]
+    partial class AddLeaveDayCount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -362,67 +365,6 @@ namespace Personelim.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("PasswordResetTokens");
-                });
-
-            modelBuilder.Entity("Personelim.Models.PerformanceReport", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AiRequestJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("AiResponseJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("CompletedTaskCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DetailedReport")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("EmployeeUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("NotCompletedTaskCount")
-                        .HasColumnType("integer");
-
-                    b.Property<double>("PerformanceScore")
-                        .HasColumnType("double precision");
-
-                    b.Property<DateTime>("PeriodEnd")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("PeriodStart")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<double>("RealizedWorkHours")
-                        .HasColumnType("double precision");
-
-                    b.Property<Guid>("RequestedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Summary")
-                        .HasColumnType("text");
-
-                    b.Property<double>("TargetWorkHours")
-                        .HasColumnType("double precision");
-
-                    b.Property<int>("UsedLeaveDays")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("PerformanceReports");
                 });
 
             modelBuilder.Entity("Personelim.Models.Province", b =>
