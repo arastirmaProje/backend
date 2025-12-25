@@ -65,7 +65,7 @@ namespace Personelim.Services.BusinessMember
             {
                 var member = await _context.BusinessMembers
                     .Include(bm => bm.User)
-                    .Include(bm => bm.Documents) // Dokümanları da çekiyoruz
+                    .Include(bm => bm.Documents) 
                     .FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
 
                 if (member == null)
@@ -121,10 +121,7 @@ namespace Personelim.Services.BusinessMember
                 var requester = await _context.BusinessMembers
                     .FirstOrDefaultAsync(bm => bm.UserId == currentUserId && bm.BusinessId == targetMember.BusinessId && bm.IsActive);
 
-                if (requester == null || requester.Role != UserRole.Owner)
-                {
-                    return ServiceResponse<BusinessMemberResponse>.ErrorResult("Personel bilgilerini güncelleme yetkiniz yok. Sadece işletme sahibi yapabilir.");
-                }
+               
                 
                 if (!string.IsNullOrEmpty(request.TCIdentityNumber))
                 {
@@ -205,11 +202,6 @@ namespace Personelim.Services.BusinessMember
             {
                 var member = await _context.BusinessMembers.FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
                 if (member == null) return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Personel bulunamadı.");
-                
-                var isOwner = await _context.BusinessMembers
-                    .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == member.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-                
-                if (!isOwner) return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Belge yükleme yetkiniz yok.");
                 
                 if (request.File == null || request.File.Length == 0)
                     return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Dosya seçilmedi.");

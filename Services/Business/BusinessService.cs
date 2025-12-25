@@ -362,7 +362,7 @@ namespace Personelim.Services.Business
         Id = doc.Id,
         DocumentType = doc.DocumentType,
         FileName = doc.FileName,
-        FileUrl = "/" + doc.FilePath,   // client için url
+        FileUrl = "/" + doc.FilePath,  
         UploadedAt = doc.UploadedAt
     }, "Belge yüklendi.");
 }
@@ -371,8 +371,7 @@ public async Task<ServiceResponse<List<BusinessDocumentResponse>>> GetBusinessDo
 {
     var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
     if (business == null) return ServiceResponse<List<BusinessDocumentResponse>>.ErrorResult("İşletme bulunamadı.");
-
-    // istersen owner/member kontrolü ekle
+    
     var docs = await _context.BusinessDocuments
         .Where(d => d.BusinessId == businessId && d.IsActive)
         .OrderByDescending(d => d.UploadedAt)

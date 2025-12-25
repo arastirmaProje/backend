@@ -29,18 +29,7 @@ namespace Personelim.Services.Performance
 
                 if (request.EndDate.Date < request.StartDate.Date)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Bitiş tarihi başlangıçtan küçük olamaz.");
-
-                // Yetki: Owner
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == currentUserId &&
-                    bm.BusinessId == request.BusinessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isOwner)
-                    return ServiceResponse<AiPerformanceResponse>.ErrorResult("Bu raporu almak için yetkiniz yok.");
-
-                // Çalışan işletmede aktif mi?
+                
                 var isEmployee = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == request.EmployeeUserId &&
                     bm.BusinessId == request.BusinessId &&
@@ -48,17 +37,16 @@ namespace Personelim.Services.Performance
 
                 if (!isEmployee)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Çalışan bu işletmede aktif değil.");
-
-                // Kullanıcı adı
+                
                 var employee = await _context.Users.FirstOrDefaultAsync(u => u.Id == request.EmployeeUserId && u.IsActive);
                 if (employee == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Çalışan bulunamadı.");
 
-                // Tarih aralığı inclusive
+                
                 var start = request.StartDate.Date;
                 var end = request.EndDate.Date.AddDays(1).AddTicks(-1);
 
-                // Görevler (aralıkla çakışan)
+                
                 var tasks = await _context.TaskItems
                     .Where(t =>
                         t.BusinessId == request.BusinessId &&
@@ -72,7 +60,7 @@ namespace Personelim.Services.Performance
                 int completed = tasks.Count(t =>
                     string.Equals((t.Status ?? "").Trim(), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
 
-                // “Tamamlandı” dışındaki her şeyi tamamlanmayan sayıyoruz
+                // “Tamamlandı dışındaki her şeyi tamamlanmayan
                 int notCompleted = tasks.Count - completed;
 
                 // Mesai toplamı
@@ -103,7 +91,6 @@ namespace Personelim.Services.Performance
                     )
                     .SumAsync(l => (int?)l.DayCount) ?? 0;
 
-                // AI Payload
                 var aiPayload = new AiPerformanceRequest
                 {
                     CalisanId = employee.Id,
@@ -125,8 +112,7 @@ namespace Personelim.Services.Performance
                         GeriDonut = t.Thoughts
                     }).ToList()
                 };
-
-                // Python API
+                
                 var resp = await _http.PostAsJsonAsync("", aiPayload);
                 if (!resp.IsSuccessStatusCode)
                 {
@@ -137,8 +123,7 @@ namespace Personelim.Services.Performance
                 var aiResult = await resp.Content.ReadFromJsonAsync<AiPerformanceResponse>();
                 if (aiResult == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("AI cevabı okunamadı.");
-
-                // DB’ye kaydet (denetlenebilirlik)
+                
                 var report = new PerformanceReport
                 {
                     Id = Guid.NewGuid(),
@@ -223,8 +208,6 @@ namespace Personelim.Services.Performance
 
                 if (!isOwner)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Yetkiniz yok.");
-
-                // DB’de saklanan AI response’u geri döndürmek için deserialize ediyoruz
                 var ai = JsonSerializer.Deserialize<AiPerformanceResponse>(report.AiResponseJson);
                 if (ai == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Kayıtlı rapor okunamadı.");
