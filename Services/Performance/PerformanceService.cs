@@ -158,14 +158,6 @@ namespace Personelim.Services.Performance
         {
             try
             {
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == currentUserId &&
-                    bm.BusinessId == businessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isOwner)
-                    return ServiceResponse<List<PerformanceReportListItem>>.ErrorResult("Yetkiniz yok.");
 
                 var list = await _context.PerformanceReports
                     .Where(r => r.BusinessId == businessId && r.EmployeeUserId == employeeUserId)
@@ -197,15 +189,7 @@ namespace Personelim.Services.Performance
                 var report = await _context.PerformanceReports.FirstOrDefaultAsync(r => r.Id == reportId);
                 if (report == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Rapor bulunamadı.");
-
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == currentUserId &&
-                    bm.BusinessId == report.BusinessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isOwner)
-                    return ServiceResponse<AiPerformanceResponse>.ErrorResult("Yetkiniz yok.");
+                
                 var ai = JsonSerializer.Deserialize<AiPerformanceResponse>(report.AiResponseJson);
                 if (ai == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Kayıtlı rapor okunamadı.");
@@ -266,8 +250,7 @@ namespace Personelim.Services.Performance
                 var fullNameByUserId = users.ToDictionary(
                     x => x.Id,
                     x => $"{x.FirstName} {x.LastName}".Trim());
-
-                // Görevleri tek seferde çek
+                
                 var allTasks = await _context.TaskItems
                     .Where(t =>
                         t.BusinessId == request.BusinessId &&
