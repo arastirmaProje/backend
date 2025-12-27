@@ -74,15 +74,6 @@ namespace Personelim.Services.Task
         {
             try
             {
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == currentUserId &&
-                    bm.BusinessId == businessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isOwner) return ServiceResponse<List<TaskResponse>>.ErrorResult("Bu işletmenin görevlerini görüntüleme yetkiniz yok.");
-
-                
                 var tasks = await _context.TaskItems
                     .Include(t => t.AssignedToUser)
                     .Include(t => t.AssignedByUser)

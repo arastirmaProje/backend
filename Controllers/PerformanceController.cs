@@ -28,6 +28,16 @@ namespace Personelim.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
         
+        [HttpPost("query-bulk-scores")]
+        public async Task<IActionResult> QueryBulkScores([FromBody] PerformanceBulkQueryRequest request)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _service.QueryBulkScoresAsync(userId, request);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
         [HttpGet("business/{businessId}/employee/{employeeUserId}")]
         public async Task<IActionResult> GetReports(Guid businessId, Guid employeeUserId)
         {
@@ -37,7 +47,7 @@ namespace Personelim.Controllers
             var result = await _service.GetReportsByEmployeeAsync(userId, businessId, employeeUserId);
             return result.Success ? Ok(result) : BadRequest(result);
         }
-        
+
         [HttpGet("{reportId}")]
         public async Task<IActionResult> GetReport(Guid reportId)
         {
