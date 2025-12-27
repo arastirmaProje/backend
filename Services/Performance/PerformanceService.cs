@@ -57,29 +57,13 @@ namespace Personelim.Services.Performance
                     .OrderByDescending(t => t.CreatedAt)
                     .ToListAsync();
                 
-                var invalidTasks = tasks
-                    .Where(t => !IsValidTaskForAi(t))
-                    .Select(t => new
-                    {
-                        t.Id,
-                        Title = t.Title ?? "",
-                        Difficulty = t.Difficulty,
-                        Status = t.Status
-                    })
-                    .ToList();
+                var validTasks = tasks.Where(IsValidTaskForAi).ToList();
+                
+                int completed = validTasks.Count(t =>
+                    string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
 
-                if (invalidTasks.Any())
-                {
-                    return ServiceResponse<AiPerformanceResponse>.ErrorResult(
-                        "AI sorgusu gönderilemedi. Görevlerde Difficulty zorunludur ve Status sadece 'Tamamlandı' / 'Tamamlanmadı' olabilir.",
-                        JsonSerializer.Serialize(invalidTasks)
-                    );
-                }
-
-                int completed = tasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
-                int notCompleted = tasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
-
-               
+                int notCompleted = validTasks.Count(t =>
+                    string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
                 var realizedHoursDec = await _context.Shifts
                     .Where(s =>
                         s.BusinessId == request.BusinessId &&
@@ -114,12 +98,12 @@ namespace Personelim.Services.Performance
                     HedeflenenMesaiSaati = targetHours,
                     GerceklesenMesaiSaati = realizedHours,
                     KullanilanIzinGunu = usedLeaveDays,
-                    Gorevler = tasks.Select(t => new AiTaskDto
+                    Gorevler = validTasks.Select(t => new AiTaskDto
                     {
                         Id = t.Id,
                         GorevAdi = t.Title ?? "",
-                        ZorlukSeviyesi = string.IsNullOrWhiteSpace(t.Difficulty) ? "Belirtilmedi" : t.Difficulty!,
-                        Durum = string.IsNullOrWhiteSpace(t.Status) ? "Beklemede" : t.Status!,
+                        ZorlukSeviyesi = t.Difficulty!,  
+                        Durum = t.Status,               
                         BaslangicTarihi = t.StartDate,
                         BitisTarihi = t.EndDate,
                         Aciklama = t.Description,
@@ -317,8 +301,7 @@ namespace Personelim.Services.Performance
                 var tasksByUser = allTasks
                     .GroupBy(t => t.AssignedToUserId)
                     .ToDictionary(g => g.Key, g => g.ToList());
-
-                // Mesai toplamlarını tek seferde çek
+                
                 var shiftSums = await _context.Shifts
                     .Where(s =>
                         s.BusinessId == request.BusinessId &&
@@ -335,8 +318,7 @@ namespace Personelim.Services.Performance
                     .ToListAsync();
 
                 var realizedHoursByUser = shiftSums.ToDictionary(x => x.UserId, x => (double)x.Total);
-
-                // İzin günlerini tek seferde çek
+                
                 var leaveSums = await _context.MemberLeaves
                     .Include(l => l.BusinessMember)
                     .Where(l =>
@@ -368,10 +350,10 @@ namespace Personelim.Services.Performance
                     tasksByUser.TryGetValue(employeeUserId, out var empTasks);
                     empTasks ??= new List<TaskItem>();
 
-                    int completed = empTasks.Count(t =>
-                        string.Equals((t.Status ?? "").Trim(), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
+                    var validTasks = empTasks.Where(IsValidTaskForAi).ToList();
 
-                    int notCompleted = empTasks.Count - completed;
+                    int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
+                    int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
 
                     realizedHoursByUser.TryGetValue(employeeUserId, out var realizedHours);
                     usedLeaveDaysByUser.TryGetValue(employeeUserId, out var usedLeaveDays);
@@ -385,12 +367,12 @@ namespace Personelim.Services.Performance
                         HedeflenenMesaiSaati = targetHours,
                         GerceklesenMesaiSaati = realizedHours,
                         KullanilanIzinGunu = usedLeaveDays,
-                        Gorevler = empTasks.Select(t => new AiTaskDto
+                        Gorevler = validTasks.Select(t => new AiTaskDto
                         {
                             Id = t.Id,
                             GorevAdi = t.Title ?? "",
-                            ZorlukSeviyesi = string.IsNullOrWhiteSpace(t.Difficulty) ? "Belirtilmedi" : t.Difficulty!,
-                            Durum = string.IsNullOrWhiteSpace(t.Status) ? "Beklemede" : t.Status!,
+                            ZorlukSeviyesi = t.Difficulty!,
+                            Durum = t.Status!,
                             BaslangicTarihi = t.StartDate,
                             BitisTarihi = t.EndDate,
                             Aciklama = t.Description,
@@ -471,7 +453,6 @@ namespace Personelim.Services.Performance
             var difficulty = Normalize(t.Difficulty);
 
             return !string.IsNullOrWhiteSpace(difficulty)
-                   && !string.IsNullOrWhiteSpace(status)
                    && AllowedStatuses.Contains(status);
         }
     }
