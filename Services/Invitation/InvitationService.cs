@@ -25,17 +25,6 @@ namespace Personelim.Services.Invitation
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // 1. Yetki Kontrolü
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == userId &&
-                    bm.BusinessId == request.BusinessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isOwner)
-                {
-                    return ServiceResponse<InvitationResponse>.ErrorResult("Personel ekleme yetkiniz yok.");
-                }
 
                 var business = await _context.Businesses.FindAsync(request.BusinessId);
                 var inviter = await _context.Users.FindAsync(userId);

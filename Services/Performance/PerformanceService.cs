@@ -213,16 +213,6 @@ namespace Personelim.Services.Performance
                 if (request.EndDate.Date < request.StartDate.Date)
                     return ServiceResponse<AiPerformanceBulkScoreResponse>.ErrorResult("Bitiş tarihi başlangıçtan küçük olamaz.");
 
-                // Yetki: Owner kontrolü
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == currentUserId &&
-                    bm.BusinessId == request.BusinessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isOwner)
-                    return ServiceResponse<AiPerformanceBulkScoreResponse>.ErrorResult("Yetkiniz yok.");
-
                 var start = request.StartDate.Date;
                 var end = request.EndDate.Date.AddDays(1).AddTicks(-1);
 
