@@ -26,27 +26,23 @@ namespace Personelim.Services.Performance
             {
                 if (request.BusinessId == Guid.Empty || request.EmployeeUserId == Guid.Empty)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("İşletme yada kullanıcı bulunamadı");
-
                 if (request.EndDate.Date < request.StartDate.Date)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Bitiş tarihi başlangıçtan küçük olamaz.");
-                
+
                 var isEmployee = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == request.EmployeeUserId &&
                     bm.BusinessId == request.BusinessId &&
                     bm.IsActive);
-
                 if (!isEmployee)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Çalışan bu işletmede aktif değil.");
-                
+
                 var employee = await _context.Users.FirstOrDefaultAsync(u => u.Id == request.EmployeeUserId && u.IsActive);
                 if (employee == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Çalışan bulunamadı.");
 
-                
                 var start = request.StartDate.Date;
                 var end = request.EndDate.Date.AddDays(1).AddTicks(-1);
 
-                
                 var tasks = await _context.TaskItems
                     .Where(t =>
                         t.BusinessId == request.BusinessId &&
@@ -56,14 +52,15 @@ namespace Personelim.Services.Performance
                     )
                     .OrderByDescending(t => t.CreatedAt)
                     .ToListAsync();
-                
+
+                // Sadece zorluk derecesi olan ve Tamamlandı/Tamamlanmadı durumundaki görevleri alıyoruz
                 var validTasks = tasks.Where(IsValidTaskForAi).ToList();
-                
+
                 int completed = validTasks.Count(t =>
                     string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
-
                 int notCompleted = validTasks.Count(t =>
                     string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
+
                 var realizedHoursDec = await _context.Shifts
                     .Where(s =>
                         s.BusinessId == request.BusinessId &&
@@ -72,12 +69,11 @@ namespace Personelim.Services.Performance
                         s.EndTime <= end
                     )
                     .SumAsync(s => (decimal?)s.TotalHours) ?? 0m;
-
                 double realizedHours = (double)realizedHoursDec;
-                
+
                 int dayCount = (request.EndDate.Date - request.StartDate.Date).Days + 1;
                 double targetHours = dayCount * 8;
-                
+
                 int usedLeaveDays = await _context.MemberLeaves
                     .Include(l => l.BusinessMember)
                     .Where(l =>
@@ -102,26 +98,25 @@ namespace Personelim.Services.Performance
                     {
                         Id = t.Id,
                         GorevAdi = t.Title ?? "",
-                        ZorlukSeviyesi = t.Difficulty!,  
-                        Durum = t.Status,               
+                        ZorlukSeviyesi = t.Difficulty!,
+                        Durum = t.Status,
                         BaslangicTarihi = t.StartDate,
                         BitisTarihi = t.EndDate,
                         Aciklama = t.Description,
                         GeriDonut = t.Thoughts
                     }).ToList()
                 };
-                
+
                 var resp = await _http.PostAsJsonAsync("", aiPayload);
                 if (!resp.IsSuccessStatusCode)
                 {
                     var body = await resp.Content.ReadAsStringAsync();
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("AI servisi hata döndü.", body);
                 }
-
                 var aiResult = await resp.Content.ReadFromJsonAsync<AiPerformanceResponse>();
                 if (aiResult == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("AI cevabı okunamadı.");
-                
+
                 var report = new PerformanceReport
                 {
                     Id = Guid.NewGuid(),
@@ -142,10 +137,8 @@ namespace Personelim.Services.Performance
                     AiResponseJson = JsonSerializer.Serialize(aiResult),
                     CreatedAt = DateTime.UtcNow
                 };
-
                 _context.PerformanceReports.Add(report);
                 await _context.SaveChangesAsync();
-
                 return ServiceResponse<AiPerformanceResponse>.SuccessResult(aiResult);
             }
             catch (Exception ex)
@@ -158,7 +151,6 @@ namespace Personelim.Services.Performance
         {
             try
             {
-
                 var list = await _context.PerformanceReports
                     .Where(r => r.BusinessId == businessId && r.EmployeeUserId == employeeUserId)
                     .OrderByDescending(r => r.CreatedAt)
@@ -173,7 +165,6 @@ namespace Personelim.Services.Performance
                         CreatedAt = r.CreatedAt
                     })
                     .ToListAsync();
-
                 return ServiceResponse<List<PerformanceReportListItem>>.SuccessResult(list);
             }
             catch (Exception ex)
@@ -189,11 +180,10 @@ namespace Personelim.Services.Performance
                 var report = await _context.PerformanceReports.FirstOrDefaultAsync(r => r.Id == reportId);
                 if (report == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Rapor bulunamadı.");
-                
+
                 var ai = JsonSerializer.Deserialize<AiPerformanceResponse>(report.AiResponseJson);
                 if (ai == null)
                     return ServiceResponse<AiPerformanceResponse>.ErrorResult("Kayıtlı rapor okunamadı.");
-
                 return ServiceResponse<AiPerformanceResponse>.SuccessResult(ai);
             }
             catch (Exception ex)
@@ -201,6 +191,7 @@ namespace Personelim.Services.Performance
                 return ServiceResponse<AiPerformanceResponse>.ErrorResult("Rapor alınamadı.", ex.Message);
             }
         }
+
         public async Task<ServiceResponse<AiPerformanceBulkScoreResponse>> QueryBulkScoresAsync(
             Guid currentUserId,
             PerformanceBulkQueryRequest request)
@@ -209,14 +200,12 @@ namespace Personelim.Services.Performance
             {
                 if (request.BusinessId == Guid.Empty)
                     return ServiceResponse<AiPerformanceBulkScoreResponse>.ErrorResult("BusinessId zorunludur.");
-
                 if (request.EndDate.Date < request.StartDate.Date)
                     return ServiceResponse<AiPerformanceBulkScoreResponse>.ErrorResult("Bitiş tarihi başlangıçtan küçük olamaz.");
-
+                
                 var start = request.StartDate.Date;
                 var end = request.EndDate.Date.AddDays(1).AddTicks(-1);
 
-                // İşletmedeki aktif toplam çalışan (distinct)
                 var activeMemberUserIds = await _context.BusinessMembers
                     .Where(bm => bm.BusinessId == request.BusinessId && bm.IsActive)
                     .Select(bm => bm.UserId)
@@ -231,7 +220,6 @@ namespace Personelim.Services.Performance
                 if (activeMemberUserIds.Count == 0)
                     return ServiceResponse<AiPerformanceBulkScoreResponse>.SuccessResult(response);
 
-                // Kullanıcı ad-soyad sözlüğü (aktif user kaydı varsa)
                 var users = await _context.Users
                     .Where(u => activeMemberUserIds.Contains(u.Id) && u.IsActive)
                     .Select(u => new { u.Id, u.FirstName, u.LastName })
@@ -250,26 +238,6 @@ namespace Personelim.Services.Performance
                     )
                     .OrderByDescending(t => t.CreatedAt)
                     .ToListAsync();
-                
-                var invalidAny = allTasks
-                    .Where(t => !IsValidTaskForAi(t))
-                    .Select(t => new
-                    {
-                        t.Id,
-                        AssignedToUserId = t.AssignedToUserId,
-                        Title = t.Title ?? "",
-                        Difficulty = t.Difficulty,
-                        Status = t.Status
-                    })
-                    .ToList();
-
-                if (invalidAny.Any())
-                {
-                    return ServiceResponse<AiPerformanceBulkScoreResponse>.ErrorResult(
-                        "Toplu AI sorgusu gönderilemedi. Bazı görevlerde Difficulty boş veya Status geçersiz. Status sadece 'Tamamlandı' / 'Tamamlanmadı' olmalı.",
-                        JsonSerializer.Serialize(invalidAny)
-                    );
-                }
 
                 var tasksByUser = allTasks
                     .GroupBy(t => t.AssignedToUserId)
@@ -289,7 +257,6 @@ namespace Personelim.Services.Performance
                         Total = g.Sum(x => (decimal?)x.TotalHours) ?? 0m
                     })
                     .ToListAsync();
-
                 var realizedHoursByUser = shiftSums.ToDictionary(x => x.UserId, x => (double)x.Total);
                 
                 var leaveSums = await _context.MemberLeaves
@@ -308,26 +275,23 @@ namespace Personelim.Services.Performance
                         Days = g.Sum(x => (int?)x.DayCount) ?? 0
                     })
                     .ToListAsync();
-
                 var usedLeaveDaysByUser = leaveSums.ToDictionary(x => x.UserId, x => x.Days);
 
-                // Hedef mesai: gün * 8
                 int dayCount = (request.EndDate.Date - request.StartDate.Date).Days + 1;
                 double targetHours = dayCount * 8;
 
-                // Her çalışan için AI çağrısı (sıralı)
                 foreach (var employeeUserId in activeMemberUserIds)
                 {
                     var fullName = fullNameByUserId.TryGetValue(employeeUserId, out var fn) ? fn : "";
-
                     tasksByUser.TryGetValue(employeeUserId, out var empTasks);
                     empTasks ??= new List<TaskItem>();
 
+                    // Sadece zorluk derecesi olan ve durumu uygun (Tamamlandı/Tamamlanmadı) olanları filtreliyoruz
                     var validTasks = empTasks.Where(IsValidTaskForAi).ToList();
 
                     int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
                     int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
-
+                    
                     realizedHoursByUser.TryGetValue(employeeUserId, out var realizedHours);
                     usedLeaveDaysByUser.TryGetValue(employeeUserId, out var usedLeaveDays);
 
@@ -354,18 +318,15 @@ namespace Personelim.Services.Performance
                     };
 
                     int scoreToReturn = 0;
-
                     try
                     {
                         var respAi = await _http.PostAsJsonAsync("", aiPayload);
-
                         if (respAi.IsSuccessStatusCode)
                         {
                             var aiResult = await respAi.Content.ReadFromJsonAsync<AiPerformanceResponse>();
-
                             if (aiResult != null)
                             {
-                                scoreToReturn = (int)aiResult.PerformansSkoru;
+                                scoreToReturn = (int)Math.Round(aiResult.PerformansSkoru);
                                 
                                 var report = new PerformanceReport
                                 {
@@ -387,15 +348,13 @@ namespace Personelim.Services.Performance
                                     AiResponseJson = JsonSerializer.Serialize(aiResult),
                                     CreatedAt = DateTime.UtcNow
                                 };
-
                                 _context.PerformanceReports.Add(report);
                             }
                         }
-                        // Başarısızsa score 0 döner (istersen burada farklı politika uygularız)
                     }
                     catch
                     {
-                        // AI call exception -> score 0 döndür
+                        // Loglanabilir, devam ediliyor.
                     }
 
                     response.Skorlar.Add(new AiPerformanceBulkScoreItem
@@ -407,7 +366,6 @@ namespace Personelim.Services.Performance
                 }
 
                 await _context.SaveChangesAsync();
-
                 return ServiceResponse<AiPerformanceBulkScoreResponse>.SuccessResult(response);
             }
             catch (Exception ex)
@@ -415,6 +373,7 @@ namespace Personelim.Services.Performance
                 return ServiceResponse<AiPerformanceBulkScoreResponse>.ErrorResult("Toplu performans skoru oluşturulamadı.", ex.Message);
             }
         }
+
         private static readonly HashSet<string> AllowedStatuses =
             new(StringComparer.OrdinalIgnoreCase) { "Tamamlandı", "Tamamlanmadı" };
 
@@ -424,10 +383,8 @@ namespace Personelim.Services.Performance
         {
             var status = Normalize(t.Status);
             var difficulty = Normalize(t.Difficulty);
-
             return !string.IsNullOrWhiteSpace(difficulty)
                    && AllowedStatuses.Contains(status);
         }
     }
-    
 }

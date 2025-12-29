@@ -3,7 +3,7 @@ using Personelim.Data;
 using Personelim.DTOs.Task;
 using Personelim.Helpers;
 using Personelim.Models;
-using Personelim.Models.Enums; // Eğer Enum kullanıyorsanız
+using Personelim.Models.Enums; 
 
 namespace Personelim.Services.Task
 {
@@ -187,7 +187,11 @@ namespace Personelim.Services.Task
 
             string currentStatus = t.Status?.ToString() ?? "Beklemede";
 
-            if (isTimeUp && currentStatus != "Tamamlandı" && currentStatus != "Completed")
+            bool isCompleted =
+                currentStatus.Equals("Tamamlandı", StringComparison.OrdinalIgnoreCase) ||
+                currentStatus.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+
+            if (isTimeUp && !isCompleted)
             {
                 currentStatus = "Süresi Geçti";
             }
@@ -197,20 +201,22 @@ namespace Personelim.Services.Task
                 Id = t.Id,
                 Title = t.Title,
                 Description = t.Description,
-                AssignedToName = t.AssignedToUser != null ? $"{t.AssignedToUser.FirstName} {t.AssignedToUser.LastName}" : "Bilinmiyor",
-                AssignedByName = t.AssignedByUser != null ? $"{t.AssignedByUser.FirstName} {t.AssignedByUser.LastName}" : "Bilinmiyor",
+                AssignedToName = t.AssignedToUser != null
+                    ? $"{t.AssignedToUser.FirstName} {t.AssignedToUser.LastName}"
+                    : "Bilinmiyor",
+                AssignedByName = t.AssignedByUser != null
+                    ? $"{t.AssignedByUser.FirstName} {t.AssignedByUser.LastName}"
+                    : "Bilinmiyor",
                 StartDate = t.StartDate,
                 EndDate = t.EndDate,
-                
-                Status = currentStatus, 
-                
-                Difficulty = string.IsNullOrWhiteSpace(t.Difficulty) ? "-" : t.Difficulty,
-                
+                Status = currentStatus,
+                Difficulty = t.Difficulty, 
                 Thoughts = t.Thoughts,
-                IsOverdue = isTimeUp, 
+                IsOverdue = isTimeUp,
                 CreatedAt = t.CreatedAt
             };
         }
+
 
         private async Task<ServiceResponse<TaskResponse>> GetTaskByIdInternal(Guid taskId)
         {
