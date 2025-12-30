@@ -79,7 +79,6 @@ namespace Personelim.Services.Performance
                     .Where(l =>
                         l.BusinessMember.BusinessId == request.BusinessId &&
                         l.BusinessMember.UserId == request.EmployeeUserId &&
-                        l.Status == LeaveStatus.Approved &&
                         l.StartDate <= end &&
                         l.EndDate >= start
                     )
