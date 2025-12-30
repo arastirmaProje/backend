@@ -124,29 +124,21 @@ namespace Personelim.Services.Task
                     .FirstOrDefaultAsync(t => t.Id == taskId);
 
                 if (task == null) return ServiceResponse<TaskResponse>.ErrorResult("Görev bulunamadı.");
-
-                bool isAssignee = task.AssignedToUserId == currentUserId;
-                bool isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == currentUserId &&
-                    bm.BusinessId == task.BusinessId &&
-                    bm.Role == UserRole.Owner &&
-                    bm.IsActive);
-
-                if (!isAssignee && !isOwner)
-                {
-                    return ServiceResponse<TaskResponse>.ErrorResult("Bu görevi güncelleme yetkiniz yok.");
-                }
                 
                 task.Status = request.Status;
+        
+                // Zorluk güncellemesi (HasValue hatası almamak için doğrudan atama yapabilirsiniz)
+                // Eğer DTO'da request.Difficulty 0 geliyorsa ve 0 geçerli bir zorluksa güncellenir.
+                task.Difficulty = request.Difficulty; 
 
                 if (!string.IsNullOrEmpty(request.Thoughts))
                 {
                     task.Thoughts = request.Thoughts;
                 }
-                task.UpdatedAt = DateTime.UtcNow;
 
+                task.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-                
+        
                 return ServiceResponse<TaskResponse>.SuccessResult(MapToResponse(task), "Görev güncellendi.");
             }
             catch (Exception ex)
