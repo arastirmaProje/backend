@@ -127,10 +127,9 @@ namespace Personelim.Services.Task
                 
                 task.Status = request.Status;
         
-                // Zorluk güncellemesi (HasValue hatası almamak için doğrudan atama yapabilirsiniz)
-                // Eğer DTO'da request.Difficulty 0 geliyorsa ve 0 geçerli bir zorluksa güncellenir.
+                
                 task.Difficulty = request.Difficulty; 
-
+                 task.Difficulty = request.Difficulty?.ToLowerInvariant();
                 if (!string.IsNullOrEmpty(request.Thoughts))
                 {
                     task.Thoughts = request.Thoughts;
