@@ -19,10 +19,10 @@ namespace Personelim.Controllers
         }
         
         [HttpPost]
-        public async Task<IActionResult> CreateLeave([FromBody] CreateLeaveRequest request)
+        public async Task<IActionResult> CreateLeave([FromBody] CreateLeaveRequestDto requestDto)
         {
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-            var result = await _leaveService.CreateLeaveRequestAsync(userId, request);
+            var result = await _leaveService.CreateLeaveRequestAsync(userId, requestDto);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
@@ -49,10 +49,10 @@ namespace Personelim.Controllers
 
         
         [HttpPut("{leaveId}/status")]
-        public async Task<IActionResult> UpdateStatus(Guid leaveId, [FromBody] UpdateLeaveStatusRequest request)
+        public async Task<IActionResult> UpdateStatus(Guid leaveId, [FromBody] UpdateLeaveStatusRequestDto requestDto)
         {
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-            var result = await _leaveService.UpdateLeaveStatusAsync(userId, leaveId, request);
+            var result = await _leaveService.UpdateLeaveStatusAsync(userId, leaveId, requestDto);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }

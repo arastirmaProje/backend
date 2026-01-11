@@ -24,7 +24,6 @@ namespace Personelim.Models
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         
-        // Navigation Properties
         public Province? Province { get; set; }  
         public District? District { get; set; }
         public User? Owner { get; set; }

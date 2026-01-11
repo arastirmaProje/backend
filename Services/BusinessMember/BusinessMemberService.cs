@@ -1,12 +1,14 @@
-using Microsoft.AspNetCore.Hosting; // Dosya işlemleri için gerekli
-using Microsoft.AspNetCore.Http;    // IFormFile için gerekli
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Personelim.Data;
 using Personelim.DTOs.BusinessMember;
 using Personelim.Helpers;
 using Personelim.Models;
 using Personelim.Models.Enums;
 using Personelim.Services.Email;
+using Personelim.Resources;
 
 namespace Personelim.Services.BusinessMember
 {
@@ -15,27 +17,33 @@ namespace Personelim.Services.BusinessMember
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env; 
         private readonly IEmailService _emailService;
-        public BusinessMemberService(AppDbContext context, IWebHostEnvironment env,IEmailService emailService)
+        private readonly IStringLocalizer<SharedResource> _localizer;
+
+        public BusinessMemberService(
+            AppDbContext context, 
+            IWebHostEnvironment env, 
+            IEmailService emailService,
+            IStringLocalizer<SharedResource> localizer)
         {
             _context = context;
             _env = env;
             _emailService = emailService;
+            _localizer = localizer;
         }
         
-        public async Task<ServiceResponse<List<BusinessMemberResponse>>> GetMembersByBusinessIdAsync(Guid currentUserId, Guid businessId)
+        public async Task<ServiceResponse<List<BusinessMemberResponseDto>>> GetMembersByBusinessIdAsync(Guid currentUserId, Guid businessId)
         {
             try
             {
                 var isMember = await _context.BusinessMembers
                     .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == businessId && bm.IsActive);
-
                 if (!isMember)
-                    return ServiceResponse<List<BusinessMemberResponse>>.ErrorResult("Bu işletmenin personelini görüntüleme yetkiniz yok.");
-
+                    return ServiceResponse<List<BusinessMemberResponseDto>>.ErrorResult(_localizer["NoPermissionViewPersonnel"]);
+                
                 var members = await _context.BusinessMembers
                     .Include(bm => bm.User)
                     .Where(bm => bm.BusinessId == businessId && bm.IsActive)
-                    .Select(bm => new BusinessMemberResponse
+                    .Select(bm => new BusinessMemberResponseDto
                     {
                         Id = bm.Id,
                         UserId = bm.UserId,
@@ -47,19 +55,17 @@ namespace Personelim.Services.BusinessMember
                         TCIdentityNumber = bm.TCIdentityNumber, 
                         JoinedAt = bm.JoinedAt,
                         IsActive = bm.IsActive
-                       
                     })
                     .ToListAsync();
-
-                return ServiceResponse<List<BusinessMemberResponse>>.SuccessResult(members);
+                return ServiceResponse<List<BusinessMemberResponseDto>>.SuccessResult(members);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<List<BusinessMemberResponse>>.ErrorResult("Personel listesi alınırken hata oluştu.", ex.Message);
+                return ServiceResponse<List<BusinessMemberResponseDto>>.ErrorResult(_localizer["ErrorPersonnelList"], ex.Message);
             }
         }
         
-        public async Task<ServiceResponse<BusinessMemberResponse>> GetMemberByIdAsync(Guid currentUserId, Guid memberId)
+        public async Task<ServiceResponse<BusinessMemberResponseDto>> GetMemberByIdAsync(Guid currentUserId, Guid memberId)
         {
             try
             {
@@ -67,17 +73,15 @@ namespace Personelim.Services.BusinessMember
                     .Include(bm => bm.User)
                     .Include(bm => bm.Documents) 
                     .FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
-
                 if (member == null)
-                    return ServiceResponse<BusinessMemberResponse>.ErrorResult("Personel bulunamadı.");
+                    return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["PersonnelNotFound"]);
                 
                 var requester = await _context.BusinessMembers
                     .FirstOrDefaultAsync(bm => bm.UserId == currentUserId && bm.BusinessId == member.BusinessId && bm.IsActive);
-
                 if (requester == null)
-                    return ServiceResponse<BusinessMemberResponse>.ErrorResult("Bu personeli görüntüleme yetkiniz yok.");
-
-                var response = new BusinessMemberResponse
+                    return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["NoPermissionViewPersonnel"]);
+                
+                var response = new BusinessMemberResponseDto
                 {
                     Id = member.Id,
                     UserId = member.UserId,
@@ -89,7 +93,7 @@ namespace Personelim.Services.BusinessMember
                     TCIdentityNumber = member.TCIdentityNumber, 
                     JoinedAt = member.JoinedAt,
                     IsActive = member.IsActive,
-                    Documents = member.Documents.Select(d => new BusinessMemberResponse.MemberDocumentResponse
+                    Documents = member.Documents.Select(d => new BusinessMemberResponseDto.MemberDocumentResponse
                     {
                         Id = d.Id,
                         DocumentType = d.DocumentType,
@@ -98,48 +102,40 @@ namespace Personelim.Services.BusinessMember
                         UploadedAt = d.UploadedAt
                     }).ToList()
                 };
-
-                return ServiceResponse<BusinessMemberResponse>.SuccessResult(response);
+                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(response);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<BusinessMemberResponse>.ErrorResult("Personel detayı alınırken hata oluştu.", ex.Message);
+                return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["ErrorPersonnelDetail"], ex.Message);
             }
         }
         
-        public async Task<ServiceResponse<BusinessMemberResponse>> UpdateMemberAsync(Guid currentUserId, Guid memberId, UpdateBusinessMemberRequest request)
+        public async Task<ServiceResponse<BusinessMemberResponseDto>> UpdateMemberAsync(Guid currentUserId, Guid memberId, UpdateBusinessMemberRequestDto requestDto)
         {
             try
             {
                 var targetMember = await _context.BusinessMembers
                     .Include(bm => bm.User)
                     .FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
-
                 if (targetMember == null)
-                    return ServiceResponse<BusinessMemberResponse>.ErrorResult("Düzenlenecek personel bulunamadı.");
+                    return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["PersonnelNotFound"]);
                 
-                var requester = await _context.BusinessMembers
-                    .FirstOrDefaultAsync(bm => bm.UserId == currentUserId && bm.BusinessId == targetMember.BusinessId && bm.IsActive);
-
-               
-                
-                if (!string.IsNullOrEmpty(request.TCIdentityNumber))
+                if (!string.IsNullOrEmpty(requestDto.TCIdentityNumber))
                 {
-                    if (request.TCIdentityNumber.Length != 11 || !request.TCIdentityNumber.All(char.IsDigit))
+                    if (requestDto.TCIdentityNumber.Length != 11 || !requestDto.TCIdentityNumber.All(char.IsDigit))
                     {
-                        return ServiceResponse<BusinessMemberResponse>.ErrorResult("TC Kimlik Numarası 11 haneli rakamlardan oluşmalıdır.");
+                        return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["TCInvalid"]);
                     }
                 }
                 
-                targetMember.Role = request.Role;
-                targetMember.Position = request.Position;
-                targetMember.Salary = request.Salary;                 
-                targetMember.TCIdentityNumber = request.TCIdentityNumber; 
+                targetMember.Role = requestDto.Role;
+                targetMember.Position = requestDto.Position;
+                targetMember.Salary = requestDto.Salary;                 
+                targetMember.TCIdentityNumber = requestDto.TCIdentityNumber; 
                 targetMember.UpdatedAt = DateTime.UtcNow;
-
                 await _context.SaveChangesAsync();
-
-                var response = new BusinessMemberResponse
+                
+                var response = new BusinessMemberResponseDto
                 {
                     Id = targetMember.Id,
                     UserId = targetMember.UserId,
@@ -152,12 +148,11 @@ namespace Personelim.Services.BusinessMember
                     JoinedAt = targetMember.JoinedAt,
                     IsActive = targetMember.IsActive
                 };
-
-                return ServiceResponse<BusinessMemberResponse>.SuccessResult(response, "Personel bilgileri güncellendi.");
+                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(response, _localizer["PersonnelUpdated"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<BusinessMemberResponse>.ErrorResult("Güncelleme sırasında hata oluştu.", ex.Message);
+                return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["ErrorUpdatePersonnel"], ex.Message);
             }
         }
         
@@ -167,354 +162,223 @@ namespace Personelim.Services.BusinessMember
             {
                 var targetMember = await _context.BusinessMembers
                     .FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
-
                 if (targetMember == null)
-                    return ServiceResponse<bool>.ErrorResult("Silinecek personel bulunamadı.");
-
+                    return ServiceResponse<bool>.ErrorResult(_localizer["PersonnelNotFound"]);
+                
                 if (targetMember.UserId == currentUserId)
                 {
-                    return ServiceResponse<bool>.ErrorResult("Kendinizi bu ekrandan çıkartamazsınız.");
+                    return ServiceResponse<bool>.ErrorResult(_localizer["CannotRemoveSelf"]);
                 }
-
+                
                 var requester = await _context.BusinessMembers
                     .FirstOrDefaultAsync(bm => bm.UserId == currentUserId && bm.BusinessId == targetMember.BusinessId && bm.IsActive);
-
                 if (requester == null || requester.Role != UserRole.Owner)
                 {
-                     return ServiceResponse<bool>.ErrorResult("Personel çıkartma yetkiniz yok.");
+                     return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionRemovePersonnel"]);
                 }
                 
                 targetMember.IsActive = false;
                 targetMember.UpdatedAt = DateTime.UtcNow;
-
                 await _context.SaveChangesAsync();
-                return ServiceResponse<bool>.SuccessResult(true, "Personel işletmeden çıkartıldı.");
+                return ServiceResponse<bool>.SuccessResult(true, _localizer["PersonnelRemoved"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<bool>.ErrorResult("Personel çıkartılırken hata oluştu.", ex.Message);
+                return ServiceResponse<bool>.ErrorResult(_localizer["ErrorRemovePersonnel"], ex.Message);
             }
         }
         
-        public async Task<ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>> UploadDocumentAsync(Guid currentUserId, Guid memberId, UploadDocumentRequest request)
+        public async Task<ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>> UploadDocumentAsync(Guid currentUserId, Guid memberId, UploadDocumentRequestDto requestDto)
         {
             try
             {
                 var member = await _context.BusinessMembers.FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
-                if (member == null) return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Personel bulunamadı.");
+                if (member == null) return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["PersonnelNotFound"]);
                 
-                if (request.File == null || request.File.Length == 0)
-                    return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Dosya seçilmedi.");
-
-                var ext = Path.GetExtension(request.File.FileName).ToLower();
+                if (requestDto.File == null || requestDto.File.Length == 0)
+                    return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["FileNotFound"]);
+                
+                var ext = Path.GetExtension(requestDto.File.FileName).ToLower();
                 if (ext != ".pdf")
-                    return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Sadece PDF dosyaları yüklenebilir.");
-
+                    return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["OnlyPdfAllowed"]);
                
                 string uploadFolder = Path.Combine(_env.WebRootPath, "uploads", "documents", member.BusinessId.ToString(), member.Id.ToString());
-                
-                if (!Directory.Exists(uploadFolder))
-                    Directory.CreateDirectory(uploadFolder);
-
+                if (!Directory.Exists(uploadFolder)) Directory.CreateDirectory(uploadFolder);
                 
                 string uniqueFileName = Guid.NewGuid().ToString() + ext;
                 string fullPath = Path.Combine(uploadFolder, uniqueFileName);
-
                 
                 using (var stream = new FileStream(fullPath, FileMode.Create))
                 {
-                    await request.File.CopyToAsync(stream);
+                    await requestDto.File.CopyToAsync(stream);
                 }
-
                 
                 string dbFilePath = Path.Combine("uploads", "documents", member.BusinessId.ToString(), member.Id.ToString(), uniqueFileName).Replace("\\", "/");
-
                 var document = new MemberDocument
                 {
                     BusinessMemberId = memberId,
-                    DocumentType = request.DocumentType,
-                    FileName = request.File.FileName, 
+                    DocumentType = requestDto.DocumentType,
+                    FileName = requestDto.File.FileName, 
                     FilePath = dbFilePath,
                     FileExtension = ext,
                     UploadedAt = DateTime.UtcNow
                 };
-
                 _context.MemberDocuments.Add(document);
                 await _context.SaveChangesAsync();
-
-                return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.SuccessResult(new BusinessMemberResponse.MemberDocumentResponse
+                
+                return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.SuccessResult(new BusinessMemberResponseDto.MemberDocumentResponse
                 {
                     Id = document.Id,
                     DocumentType = document.DocumentType,
                     FileName = document.FileName,
                     FileUrl = document.FilePath,
                     UploadedAt = document.UploadedAt
-                }, "Belge başarıyla yüklendi.");
+                }, _localizer["DocumentUploadSuccess"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Dosya yüklenirken hata oluştu: " + ex.Message);
+                return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["ErrorDocumentUpload"] + ": " + ex.Message);
             }
         }
         
-public async Task<ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>> UpdateDocumentAsync(Guid currentUserId, Guid documentId, UpdateDocumentRequest request)
-{
-    try
-    {
-        var doc = await _context.MemberDocuments
-            .Include(d => d.BusinessMember)
-            .FirstOrDefaultAsync(d => d.Id == documentId);
-
-        if (doc == null) return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Belge bulunamadı.");
-        
-        var isOwner = await _context.BusinessMembers
-            .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-
-        if (!isOwner) return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Belge güncelleme yetkiniz yok.");
-        
-        if (!string.IsNullOrWhiteSpace(request.DocumentType))
-        {
-            doc.DocumentType = request.DocumentType;
-        }
-        
-        if (request.File != null && request.File.Length > 0)
-        {
-            var ext = Path.GetExtension(request.File.FileName).ToLower();
-            if (ext != ".pdf")
-                return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Sadece PDF dosyaları yüklenebilir.");
-            
-            string oldFullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
-            if (System.IO.File.Exists(oldFullPath))
-            {
-                System.IO.File.Delete(oldFullPath);
-            }
-            
-            string uploadFolder = Path.Combine(_env.WebRootPath, "uploads", "documents", doc.BusinessMember.BusinessId.ToString(), doc.BusinessMember.Id.ToString());
-            
-            if (!Directory.Exists(uploadFolder)) Directory.CreateDirectory(uploadFolder);
-            
-            string uniqueFileName = Guid.NewGuid().ToString() + ext;
-            string newFullPath = Path.Combine(uploadFolder, uniqueFileName);
-
-            using (var stream = new FileStream(newFullPath, FileMode.Create))
-            {
-                await request.File.CopyToAsync(stream);
-            }
-            
-            string dbFilePath = Path.Combine("uploads", "documents", doc.BusinessMember.BusinessId.ToString(), doc.BusinessMember.Id.ToString(), uniqueFileName).Replace("\\", "/");
-            
-            doc.FileName = request.File.FileName; 
-            doc.FilePath = dbFilePath;
-            doc.FileExtension = ext;
-            doc.UploadedAt = DateTime.UtcNow; 
-        }
-        
-        await _context.SaveChangesAsync();
-
-        return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.SuccessResult(new BusinessMemberResponse.MemberDocumentResponse
-        {
-            Id = doc.Id,
-            DocumentType = doc.DocumentType,
-            FileName = doc.FileName,
-            FileUrl = doc.FilePath,
-            UploadedAt = doc.UploadedAt
-        }, "Belge başarıyla güncellendi.");
-    }
-    catch (Exception ex)
-    {
-        return ServiceResponse<BusinessMemberResponse.MemberDocumentResponse>.ErrorResult("Belge güncellenirken hata oluştu: " + ex.Message);
-    }
-}
-
-// Interface'e eklemeyi unutmayın: 
-// Task<ServiceResponse<DocumentDownloadResponse>> GetDocumentFileAsync(Guid currentUserId, Guid documentId);
-
-public async Task<ServiceResponse<DocumentDownloadResponse>> GetDocumentFileAsync(Guid currentUserId, Guid documentId)
-{
-    var doc = await _context.MemberDocuments
-        .Include(d => d.BusinessMember)
-        .FirstOrDefaultAsync(d => d.Id == documentId);
-
-    if (doc == null) return ServiceResponse<DocumentDownloadResponse>.ErrorResult("Belge bulunamadı.");
-
-    // YETKİ KONTROLÜ
-    // 1. Personelin kendisi mi?
-    bool isSelf = doc.BusinessMember.UserId == currentUserId;
-
-    // 2. İşletme sahibi mi?
-    bool isOwner = await _context.BusinessMembers
-        .AnyAsync(bm => bm.UserId == currentUserId && 
-                        bm.BusinessId == doc.BusinessMember.BusinessId && 
-                        bm.Role == UserRole.Owner && 
-                        bm.IsActive);
-
-    if (!isSelf && !isOwner)
-    {
-        return ServiceResponse<DocumentDownloadResponse>.ErrorResult("Bu belgeyi görüntüleme yetkiniz yok.");
-    }
-
-    // Dosyayı Diskten Oku
-    string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
-    
-    if (!System.IO.File.Exists(fullPath))
-        return ServiceResponse<DocumentDownloadResponse>.ErrorResult("Dosya sunucuda bulunamadı (Silinmiş olabilir).");
-
-    byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(fullPath);
-
-    return ServiceResponse<DocumentDownloadResponse>.SuccessResult(new DocumentDownloadResponse
-    {
-        FileBytes = fileBytes,
-        FileName = doc.FileName,
-        ContentType = "application/pdf" // Sadece PDF kabul ettiğimiz için sabit
-    });
-}
-       
-        public async Task<ServiceResponse<bool>> DeleteDocumentAsync(Guid currentUserId, Guid documentId)
+        public async Task<ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>> UpdateDocumentAsync(Guid currentUserId, Guid documentId, UpdateDocumentRequestDto requestDto)
         {
             try
             {
                 var doc = await _context.MemberDocuments
                     .Include(d => d.BusinessMember)
                     .FirstOrDefaultAsync(d => d.Id == documentId);
-
-                if (doc == null) return ServiceResponse<bool>.ErrorResult("Belge bulunamadı.");
-
+                if (doc == null) return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["DocumentNotFound"]);
                 
                 var isOwner = await _context.BusinessMembers
                     .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-
-                if (!isOwner) return ServiceResponse<bool>.ErrorResult("Belge silme yetkiniz yok.");
-               
-                string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
-                if (System.IO.File.Exists(fullPath))
+                if (!isOwner) return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["NoPermissionUpdateDocument"]);
+                
+                if (!string.IsNullOrWhiteSpace(requestDto.DocumentType)) doc.DocumentType = requestDto.DocumentType;
+                
+                if (requestDto.File != null && requestDto.File.Length > 0)
                 {
-                    System.IO.File.Delete(fullPath);
+                    var ext = Path.GetExtension(requestDto.File.FileName).ToLower();
+                    if (ext != ".pdf")
+                        return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["OnlyPdfAllowed"]);
+                    
+                    string oldFullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
+                    if (System.IO.File.Exists(oldFullPath)) System.IO.File.Delete(oldFullPath);
+                    
+                    string uploadFolder = Path.Combine(_env.WebRootPath, "uploads", "documents", doc.BusinessMember.BusinessId.ToString(), doc.BusinessMember.Id.ToString());
+                    if (!Directory.Exists(uploadFolder)) Directory.CreateDirectory(uploadFolder);
+                    
+                    string uniqueFileName = Guid.NewGuid().ToString() + ext;
+                    string newFullPath = Path.Combine(uploadFolder, uniqueFileName);
+                    using (var stream = new FileStream(newFullPath, FileMode.Create)) await requestDto.File.CopyToAsync(stream);
+                    
+                    doc.FileName = requestDto.File.FileName; 
+                    doc.FilePath = Path.Combine("uploads", "documents", doc.BusinessMember.BusinessId.ToString(), doc.BusinessMember.Id.ToString(), uniqueFileName).Replace("\\", "/");
+                    doc.FileExtension = ext;
+                    doc.UploadedAt = DateTime.UtcNow; 
                 }
                 
-                _context.MemberDocuments.Remove(doc);
                 await _context.SaveChangesAsync();
-
-                return ServiceResponse<bool>.SuccessResult(true, "Belge başarıyla silindi.");
+                return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.SuccessResult(new BusinessMemberResponseDto.MemberDocumentResponse
+                {
+                    Id = doc.Id, DocumentType = doc.DocumentType, FileName = doc.FileName, FileUrl = doc.FilePath, UploadedAt = doc.UploadedAt
+                }, _localizer["DocumentUpdateSuccess"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<bool>.ErrorResult("Belge silinirken hata oluştu: " + ex.Message);
+                return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["ErrorDocumentUpdate"] + ": " + ex.Message);
             }
         }
-        public async Task<ServiceResponse<Guid>> AddEmployeeDirectlyAsync(Guid currentUserId, AddEmployeeRequest request)
+
+        public async Task<ServiceResponse<DocumentDownloadResponseDto>> GetDocumentFileAsync(Guid currentUserId, Guid documentId)
+        {
+            var doc = await _context.MemberDocuments.Include(d => d.BusinessMember).FirstOrDefaultAsync(d => d.Id == documentId);
+            if (doc == null) return ServiceResponse<DocumentDownloadResponseDto>.ErrorResult(_localizer["DocumentNotFound"]);
+
+            bool isSelf = doc.BusinessMember.UserId == currentUserId;
+            bool isOwner = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
+            
+            if (!isSelf && !isOwner)
+                return ServiceResponse<DocumentDownloadResponseDto>.ErrorResult(_localizer["NoPermissionViewDocument"]);
+            
+            string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
+            if (!System.IO.File.Exists(fullPath))
+                return ServiceResponse<DocumentDownloadResponseDto>.ErrorResult(_localizer["FileNotFoundOnServer"]);
+            
+            byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(fullPath);
+            return ServiceResponse<DocumentDownloadResponseDto>.SuccessResult(new DocumentDownloadResponseDto { FileBytes = fileBytes, FileName = doc.FileName, ContentType = "application/pdf" });
+        }
+       
+        public async Task<ServiceResponse<bool>> DeleteDocumentAsync(Guid currentUserId, Guid documentId)
+        {
+            try
+            {
+                var doc = await _context.MemberDocuments.Include(d => d.BusinessMember).FirstOrDefaultAsync(d => d.Id == documentId);
+                if (doc == null) return ServiceResponse<bool>.ErrorResult(_localizer["DocumentNotFound"]);
+                
+                var isOwner = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
+                if (!isOwner) return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionDeleteDocument"]);
+               
+                string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
+                if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
+                
+                _context.MemberDocuments.Remove(doc);
+                await _context.SaveChangesAsync();
+                return ServiceResponse<bool>.SuccessResult(true, _localizer["DocumentDeleteSuccess"]);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<bool>.ErrorResult(_localizer["ErrorDocumentDelete"] + ": " + ex.Message);
+            }
+        }
+
+        public async Task<ServiceResponse<Guid>> AddEmployeeDirectlyAsync(Guid currentUserId, AddEmployeeRequestDto requestDto)
         {
              using var transaction = await _context.Database.BeginTransactionAsync();
              try
              {
-                 // 1. Yetki Kontrolü
-                 var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
-                     bm.UserId == currentUserId &&
-                     bm.BusinessId == request.BusinessId &&
-                     bm.Role == UserRole.Owner &&
-                     bm.IsActive);
-
-                 if (!isOwner)
-                     return ServiceResponse<Guid>.ErrorResult("Personel ekleme yetkiniz yok.");
-
-                 // 2. İşletme Adını Çek (Mail için)
-                 var businessName = await _context.Businesses
-                     .Where(b => b.Id == request.BusinessId)
-                     .Select(b => b.Name)
-                     .FirstOrDefaultAsync();
-
-                 // 3. Kullanıcı Kontrolü
-                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+                 var isOwner = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == requestDto.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
+                 if (!isOwner) return ServiceResponse<Guid>.ErrorResult(_localizer["NoPermissionAddPersonnel"]);
+                 
+                 var businessName = await _context.Businesses.Where(b => b.Id == requestDto.BusinessId).Select(b => b.Name).FirstOrDefaultAsync();
+                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == requestDto.Email.ToLower());
                  
                  string temporaryPassword = null;
                  bool isNewUser = false;
-
                  if (user == null)
                  {
-                     // -- SENARYO A: YENİ KULLANICI --
                      isNewUser = true;
                      temporaryPassword = GenerateRandomPassword();
-                     string passwordHash = BCrypt.Net.BCrypt.HashPassword(temporaryPassword);
-
-                     user = new User
-                     {
-                         Id = Guid.NewGuid(),
-                         Email = request.Email.Trim(),
-                         FirstName = request.FirstName.Trim(),
-                         LastName = request.LastName.Trim(),
-                         PasswordHash = passwordHash,
-                         CreatedAt = DateTime.UtcNow,
-                         UpdatedAt = DateTime.UtcNow
-                     };
+                     user = new User { Id = Guid.NewGuid(), Email = requestDto.Email.Trim(), FirstName = requestDto.FirstName.Trim(), LastName = requestDto.LastName.Trim(), PasswordHash = BCrypt.Net.BCrypt.HashPassword(temporaryPassword), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
                      await _context.Users.AddAsync(user);
                  }
                  else
                  {
-                     // -- SENARYO B: MEVCUT KULLANICI --
-                     var isAlreadyMember = await _context.BusinessMembers.AnyAsync(bm => 
-                         bm.UserId == user.Id && 
-                         bm.BusinessId == request.BusinessId && 
-                         bm.IsActive);
-
-                     if (isAlreadyMember)
-                         return ServiceResponse<Guid>.ErrorResult("Bu kullanıcı zaten ekibinizde.");
+                     if (await _context.BusinessMembers.AnyAsync(bm => bm.UserId == user.Id && bm.BusinessId == requestDto.BusinessId && bm.IsActive))
+                         return ServiceResponse<Guid>.ErrorResult(_localizer["AlreadyMember"]);
                  }
-
-                 // 4. BusinessMember İlişkisi Kurma
-                 if (!Enum.TryParse<UserRole>(request.Role, true, out var roleEnum))
-                     roleEnum = UserRole.Employee;
-
-                 var newMember = new Models.BusinessMember
-                 {
-                     BusinessId = request.BusinessId,
-                     UserId = user.Id,
-                     Role = roleEnum,
-                     Position = request.Position,
-                     Salary = request.Salary,
-                     TCIdentityNumber = request.TCIdentityNumber,
-                     JoinedAt = DateTime.UtcNow,
-                     IsActive = true
-                 };
-
+                 
+                 if (!Enum.TryParse<UserRole>(requestDto.Role, true, out var roleEnum)) roleEnum = UserRole.Employee;
+                 var newMember = new Models.BusinessMember { BusinessId = requestDto.BusinessId, UserId = user.Id, Role = roleEnum, Position = requestDto.Position, Salary = requestDto.Salary, TCIdentityNumber = requestDto.TCIdentityNumber, JoinedAt = DateTime.UtcNow, IsActive = true };
                  await _context.BusinessMembers.AddAsync(newMember);
                  await _context.SaveChangesAsync();
-
-                 // 5. MAİL GÖNDERİMİ (DÜZELTİLEN KISIM)
-                 bool mailSent = false;
-                 
-                 if (isNewUser)
-                 {
-                     // SendAccountCreatedEmailAsync metodunu çağırıyoruz
-                     // Parametreler: (email, isim, şifre, işletmeAdı)
-                     mailSent = await _emailService.SendAccountCreatedEmailAsync(
-                         user.Email, 
-                         user.FirstName, 
-                         temporaryPassword, 
-                         businessName
-                     );
-                 }
-                 else
-                 {
-                     // SendAddedToBusinessEmailAsync metodunu çağırıyoruz
-                     // Parametreler: (email, isim, işletmeAdı)
-                     mailSent = await _emailService.SendAddedToBusinessEmailAsync(
-                         user.Email, 
-                         user.FirstName, 
-                         businessName
-                     );
-                 }
+              
+                 bool mailSent = isNewUser 
+                     ? await _emailService.SendAccountCreatedEmailAsync(user.Email, user.FirstName, temporaryPassword, businessName)
+                     : await _emailService.SendAddedToBusinessEmailAsync(user.Email, user.FirstName, businessName);
 
                  await transaction.CommitAsync();
 
                  string msg = isNewUser 
-                     ? (mailSent ? "Personel oluşturuldu ve şifre mail atıldı." : $"Mail GİTMEDİ. Şifre: {temporaryPassword}")
-                     : "Mevcut kullanıcı işletmeye eklendi.";
+                     ? (mailSent ? _localizer["AccountCreatedMailSent"] : string.Format(_localizer["MailNotSent"], temporaryPassword))
+                     : _localizer["ExistingUserAdded"];
 
                  return ServiceResponse<Guid>.SuccessResult(newMember.Id, msg);
              }
              catch (Exception ex)
              {
                  await transaction.RollbackAsync();
-                 return ServiceResponse<Guid>.ErrorResult("Hata oluştu", ex.Message);
+                 return ServiceResponse<Guid>.ErrorResult(_localizer["GeneralError"], ex.Message);
              }
         }
 
@@ -526,4 +390,3 @@ public async Task<ServiceResponse<DocumentDownloadResponse>> GetDocumentFileAsyn
         }
     }
 }
-    

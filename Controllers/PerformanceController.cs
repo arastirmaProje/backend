@@ -19,12 +19,12 @@ namespace Personelim.Controllers
         }
 
         [HttpPost("query")]
-        public async Task<IActionResult> Query([FromBody] PerformanceQueryRequest request)
+        public async Task<IActionResult> Query([FromBody] PerformanceQueryRequestDto requestDto)
         {
             var userId = GetUserIdFromToken();
             if (userId == Guid.Empty) return Unauthorized();
 
-            var result = await _service.QueryAsync(userId, request);
+            var result = await _service.QueryAsync(userId, requestDto);
             return result.Success ? Ok(result) : BadRequest(result);
         }
         

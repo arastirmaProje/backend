@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http; 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Localization;
 using Personelim.Data;
 using Personelim.DTOs.Business;
 using Personelim.Helpers;
 using Personelim.Services.Email;
 using Personelim.Models; 
+using Personelim.Resources;
 
 namespace Personelim.Services.Business
 {
@@ -16,21 +18,26 @@ namespace Personelim.Services.Business
         private readonly IEmailService _emailService;
         private readonly ILogger<BusinessService> _logger;
         private readonly IWebHostEnvironment _env; 
+        private readonly IStringLocalizer<SharedResource> _localizer;
 
-        public BusinessService(AppDbContext context, IEmailService emailService, ILogger<BusinessService> logger, IWebHostEnvironment env)
+        public BusinessService(
+            AppDbContext context, 
+            IEmailService emailService, 
+            ILogger<BusinessService> logger, 
+            IWebHostEnvironment env,
+            IStringLocalizer<SharedResource> localizer)
         {
             _context = context;
             _emailService = emailService;
             _logger = logger;
             _env = env;
+            _localizer = localizer;
         }
         
-        // Parametreyi değiştirdim: Artık userId alıyor.
-        public async Task<ServiceResponse<List<BusinessResponse>>> GetAllBusinessesAsync(Guid? userId)
+        public async Task<ServiceResponse<List<BusinessResponseDto>>> GetAllBusinessesAsync(Guid? userId)
         {
             if (!userId.HasValue)
-                return ServiceResponse<List<BusinessResponse>>.SuccessResult(new List<BusinessResponse>());
-
+                return ServiceResponse<List<BusinessResponseDto>>.SuccessResult(new List<BusinessResponseDto>());
             try
             {
                 var businesses = await _context.Businesses
@@ -39,7 +46,6 @@ namespace Personelim.Services.Business
                     .Include(b => b.Members)        
                     .Include(b => b.ParentBusiness)
                     .Include(b => b.SubBusinesses)  
-                   
                     .Where(b => 
                         b.ParentBusinessId == null && 
                         (
@@ -54,20 +60,16 @@ namespace Personelim.Services.Business
                 var responseList = businesses
                     .Select(b => MapToBusinessResponse(b, userId)) 
                     .ToList();
-
-                return ServiceResponse<List<BusinessResponse>>.SuccessResult(responseList, "İşletmeleriniz listelendi.");
+                return ServiceResponse<List<BusinessResponseDto>>.SuccessResult(responseList, _localizer["BusinessesListed"]);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "İşletmeler listelenirken hata oluştu.");
-                return ServiceResponse<List<BusinessResponse>>.ErrorResult("Hata oluştu.");
+                _logger.LogError(ex, _localizer["ErrorListingBusinesses"]);
+                return ServiceResponse<List<BusinessResponseDto>>.ErrorResult(_localizer["GeneralError"]);
             }
         }
-
       
-       
-        
-        public async Task<ServiceResponse<BusinessResponse>> GetBusinessByIdAsync(Guid? userId, Guid businessId)
+        public async Task<ServiceResponse<BusinessResponseDto>> GetBusinessByIdAsync(Guid? userId, Guid businessId)
         {
             var business = await _context.Businesses
                 .Include(b => b.Province)
@@ -76,62 +78,56 @@ namespace Personelim.Services.Business
                 .Include(b => b.SubBusinesses)
                 .Include(b => b.Members)
                 .FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
-
+            
             if (business == null) 
-                return ServiceResponse<BusinessResponse>.ErrorResult("İşletme bulunamadı");
-
+                return ServiceResponse<BusinessResponseDto>.ErrorResult(_localizer["BusinessNotFound"]);
+            
             var response = MapToBusinessResponse(business, userId);
-            return ServiceResponse<BusinessResponse>.SuccessResult(response);
+            return ServiceResponse<BusinessResponseDto>.SuccessResult(response);
         }
         
-        public async Task<ServiceResponse<BusinessResponse>> UpdateBusinessAsync(Guid userId, Guid businessId, UpdateBusinessRequest request)
+        public async Task<ServiceResponse<BusinessResponseDto>> UpdateBusinessAsync(Guid userId, Guid businessId, UpdateBusinessRequestDto requestDto)
         {
             var business = await _context.Businesses
                 .FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
             
             if (business == null) 
-                return ServiceResponse<BusinessResponse>.ErrorResult("İşletme bulunamadı.");
-
+                return ServiceResponse<BusinessResponseDto>.ErrorResult(_localizer["BusinessNotFound"]);
             if (business.OwnerId != userId)
-                return ServiceResponse<BusinessResponse>.ErrorResult("Bu işlem için yetkiniz yok.");
-
-            // Metin Alanları
-            if (!string.IsNullOrWhiteSpace(request.Name)) business.Name = request.Name.Trim();
-            if (!string.IsNullOrWhiteSpace(request.Description)) business.Description = request.Description.Trim();
-            if (!string.IsNullOrWhiteSpace(request.Address)) business.Address = request.Address.Trim();
-            if (!string.IsNullOrWhiteSpace(request.PhoneNumber)) business.PhoneNumber = request.PhoneNumber.Trim();
+                return ServiceResponse<BusinessResponseDto>.ErrorResult(_localizer["UnauthorizedAction"]);
             
-            if (request.ProvinceId.HasValue) business.ProvinceId = request.ProvinceId.Value;
-            if (request.DistrictId.HasValue) business.DistrictId = request.DistrictId.Value;
+            if (!string.IsNullOrWhiteSpace(requestDto.Name)) business.Name = requestDto.Name.Trim();
+            if (!string.IsNullOrWhiteSpace(requestDto.Description)) business.Description = requestDto.Description.Trim();
+            if (!string.IsNullOrWhiteSpace(requestDto.Address)) business.Address = requestDto.Address.Trim();
+            if (!string.IsNullOrWhiteSpace(requestDto.PhoneNumber)) business.PhoneNumber = requestDto.PhoneNumber.Trim();
             
-            if (!string.IsNullOrWhiteSpace(request.LocationName)) business.LocationName = request.LocationName.Trim();
-            if (request.Latitude.HasValue) business.Latitude = request.Latitude.Value;
-            if (request.Longitude.HasValue) business.Longitude = request.Longitude.Value;
+            if (requestDto.ProvinceId.HasValue) business.ProvinceId = requestDto.ProvinceId.Value;
+            if (requestDto.DistrictId.HasValue) business.DistrictId = requestDto.DistrictId.Value;
             
-            if (request.Image != null && request.Image.Length > 0)
+            if (!string.IsNullOrWhiteSpace(requestDto.LocationName)) business.LocationName = requestDto.LocationName.Trim();
+            if (requestDto.Latitude.HasValue) business.Latitude = requestDto.Latitude.Value;
+            if (requestDto.Longitude.HasValue) business.Longitude = requestDto.Longitude.Value;
+            
+            if (requestDto.Image != null && requestDto.Image.Length > 0)
             {
                 try
                 {
                     var uploadPath = Path.Combine(_env.WebRootPath, "uploads", "business-logos");
                     if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
-
-                    var fileExtension = Path.GetExtension(request.Image.FileName);
+                    var fileExtension = Path.GetExtension(requestDto.Image.FileName);
                     var fileName = $"{business.Id}_{Guid.NewGuid()}{fileExtension}";
                     var filePath = Path.Combine(uploadPath, fileName);
-
                     using (var stream = new FileStream(filePath, FileMode.Create))
                     {
-                        await request.Image.CopyToAsync(stream);
+                        await requestDto.Image.CopyToAsync(stream);
                     }
-
                     business.ImageUrl = $"/uploads/business-logos/{fileName}";
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Resim yükleme sırasında hata oluştu.");
+                    _logger.LogError(ex, _localizer["ImageUploadError"]);
                 }
             }
-
             business.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             
@@ -142,36 +138,33 @@ namespace Personelim.Services.Business
                 .Include(b => b.SubBusinesses)
                 .Include(b => b.Members)
                 .FirstOrDefaultAsync(b => b.Id == businessId);
-
+            
             var response = MapToBusinessResponse(updatedBusiness!, userId);
-            return ServiceResponse<BusinessResponse>.SuccessResult(response, "İşletme başarıyla güncellendi.");
+            return ServiceResponse<BusinessResponseDto>.SuccessResult(response, _localizer["BusinessUpdated"]);
         }
-
-        // =========================================================================
-        // 4. CREATE BUSINESS
-        // =========================================================================
-        public async Task<ServiceResponse<BusinessResponse>> CreateBusinessAsync(CreateBusinessRequest request, Guid userId)
+        
+        public async Task<ServiceResponse<BusinessResponseDto>> CreateBusinessAsync(CreateBusinessRequestDto requestDto, Guid userId)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-                if (user == null) return ServiceResponse<BusinessResponse>.ErrorResult("Kullanıcı bulunamadı.");
+                if (user == null) return ServiceResponse<BusinessResponseDto>.ErrorResult(_localizer["UserNotFound"]);
             
                 Random random = new Random();
                 string verificationCode = random.Next(100000, 999999).ToString();
                 
                 var mainBusiness = new Personelim.Models.Business
                 {
-                    Name = request.BusinessName,
+                    Name = requestDto.BusinessName,
                     LocationName = string.Empty,
                     Latitude = 0,
                     Longitude = 0,
-                    PhoneNumber = request.PhoneNumber,
-                    ProvinceId = request.ProvinceId,
-                    DistrictId = request.DistrictId,
-                    Address = request.Address,
-                    Description = request.Description,
+                    PhoneNumber = requestDto.PhoneNumber,
+                    ProvinceId = requestDto.ProvinceId,
+                    DistrictId = requestDto.DistrictId,
+                    Address = requestDto.Address,
+                    Description = requestDto.Description,
                     OwnerId = userId,
                     IsActive = false, 
                     VerificationCode = verificationCode,
@@ -179,17 +172,17 @@ namespace Personelim.Services.Business
                     CreatedAt = DateTime.UtcNow 
                 };
                 await _context.Businesses.AddAsync(mainBusiness);
-
-                if (request.Offices != null && request.Offices.Count > 0)
+                
+                if (requestDto.Offices != null && requestDto.Offices.Count > 0)
                 {
-                    foreach (var officeDto in request.Offices)
+                    foreach (var officeDto in requestDto.Offices)
                     {
                         var subBusiness = new Personelim.Models.Business
                         {
                             LocationName = officeDto.OfficeName,
                             Latitude = officeDto.Latitude,
                             Longitude = officeDto.Longitude,
-                            Name = $"{request.BusinessName} - {officeDto.OfficeName}",
+                            Name = $"{requestDto.BusinessName} - {officeDto.OfficeName}",
                             Address = mainBusiness.Address,
                             PhoneNumber = mainBusiness.PhoneNumber,
                             ProvinceId = mainBusiness.ProvinceId,
@@ -226,36 +219,31 @@ namespace Personelim.Services.Business
                 if (!mailSent) throw new Exception("Doğrulama e-postası gönderilemedi.");
                 
                 await transaction.CommitAsync();
-
+                
                 var createdBusiness = await _context.Businesses
                      .Include(b => b.Province)
                      .Include(b => b.District)
                      .Include(b => b.Members)
                      .Include(b => b.SubBusinesses)
                      .FirstOrDefaultAsync(b => b.Id == mainBusiness.Id);
-
+                
                 var response = MapToBusinessResponse(createdBusiness!, userId);
-                return ServiceResponse<BusinessResponse>.SuccessResult(response, "Şirket oluşturuldu. Doğrulama kodu gönderildi.");
+                return ServiceResponse<BusinessResponseDto>.SuccessResult(response, _localizer["BusinessCreatedVerificationSent"]);
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                return ServiceResponse<BusinessResponse>.ErrorResult("Şirket kaydedilemedi.", ex.Message);
+                return ServiceResponse<BusinessResponseDto>.ErrorResult(_localizer["BusinessVerificationError"], ex.Message);
             }
         }
-
-        // =========================================================================
-        // 5. VERIFY BUSINESS
-        // =========================================================================
         
-
-        public async Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, VerifyBusinessRequest request)
+        public async Task<ServiceResponse<bool>> VerifyBusinessAsync(Guid userId, VerifyBusinessRequestDto requestDto)
         {
             try
             {
-                string codeToCheck = request.Code?.Trim();
+                string codeToCheck = requestDto.Code?.Trim();
                 if (string.IsNullOrEmpty(codeToCheck))
-                    return ServiceResponse<bool>.ErrorResult("Lütfen doğrulama kodunu giriniz.");
+                    return ServiceResponse<bool>.ErrorResult(_localizer["EnterVerificationCode"]);
                 
                 var business = await _context.Businesses
                     .Include(b => b.SubBusinesses)
@@ -265,7 +253,7 @@ namespace Personelim.Services.Business
                         b.IsVerified == false); 
                 
                 if (business == null)
-                    return ServiceResponse<bool>.ErrorResult("Geçersiz kod veya işletme bulunamadı.");
+                    return ServiceResponse<bool>.ErrorResult(_localizer["InvalidCodeOrBusiness"]);
                 
                 business.IsVerified = true; 
                 business.IsActive = true;
@@ -280,18 +268,17 @@ namespace Personelim.Services.Business
                     }
                 }
                 await _context.SaveChangesAsync();
-                return ServiceResponse<bool>.SuccessResult(true, "İşletmeniz başarıyla doğrulandı.");
+                return ServiceResponse<bool>.SuccessResult(true, _localizer["BusinessVerified"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<bool>.ErrorResult("Doğrulama hatası: " + ex.Message);
+                return ServiceResponse<bool>.ErrorResult(_localizer["VerificationError"] + ex.Message);
             }
         }
         
-        private BusinessResponse MapToBusinessResponse(Personelim.Models.Business business, Guid? currentUserId)
+        private BusinessResponseDto MapToBusinessResponse(Personelim.Models.Business business, Guid? currentUserId)
         {
-
-            return new BusinessResponse
+            return new BusinessResponseDto
             {
                 Id = business.Id,
                 Name = business.Name,
@@ -315,96 +302,91 @@ namespace Personelim.Services.Business
             };
         }
         
-        public async Task<ServiceResponse<BusinessDocumentResponse>> UploadBusinessDocumentAsync(
-    Guid userId, Guid businessId, UploadBusinessDocumentRequest request)
-{
-    var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
-    if (business == null) return ServiceResponse<BusinessDocumentResponse>.ErrorResult("İşletme bulunamadı.");
-    if (business.OwnerId != userId) return ServiceResponse<BusinessDocumentResponse>.ErrorResult("Yetkiniz yok.");
-
-    if (request.File == null || request.File.Length == 0)
-        return ServiceResponse<BusinessDocumentResponse>.ErrorResult("Dosya seçilmedi.");
-
-    var ext = Path.GetExtension(request.File.FileName).ToLowerInvariant();
-    var allowed = new HashSet<string> { ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg" };
-    if (!allowed.Contains(ext))
-        return ServiceResponse<BusinessDocumentResponse>.ErrorResult("Geçersiz dosya uzantısı.");
-
-    var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-    var uploadFolder = Path.Combine(webRoot, "uploads", "business-documents", businessId.ToString());
-    Directory.CreateDirectory(uploadFolder);
-
-    var uniqueName = $"{Guid.NewGuid()}{ext}";
-    var fullPath = Path.Combine(uploadFolder, uniqueName);
-
-    using (var stream = new FileStream(fullPath, FileMode.Create))
-        await request.File.CopyToAsync(stream);
-
-    var dbPath = Path.Combine("uploads", "business-documents", businessId.ToString(), uniqueName)
-        .Replace("\\", "/");
-
-    var doc = new BusinessDocument
-    {
-        BusinessId = businessId,
-        DocumentType = request.DocumentType,
-        FileName = request.File.FileName,
-        FilePath = dbPath,
-        FileExtension = ext,
-        UploadedAt = DateTime.UtcNow,
-        IsActive = true
-    };
-
-    _context.BusinessDocuments.Add(doc);
-    await _context.SaveChangesAsync();
-
-    return ServiceResponse<BusinessDocumentResponse>.SuccessResult(new BusinessDocumentResponse
-    {
-        Id = doc.Id,
-        DocumentType = doc.DocumentType,
-        FileName = doc.FileName,
-        FileUrl = "/" + doc.FilePath,  
-        UploadedAt = doc.UploadedAt
-    }, "Belge yüklendi.");
-}
-
-public async Task<ServiceResponse<List<BusinessDocumentResponse>>> GetBusinessDocumentsAsync(Guid userId, Guid businessId)
-{
-    var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
-    if (business == null) return ServiceResponse<List<BusinessDocumentResponse>>.ErrorResult("İşletme bulunamadı.");
-    
-    var docs = await _context.BusinessDocuments
-        .Where(d => d.BusinessId == businessId && d.IsActive)
-        .OrderByDescending(d => d.UploadedAt)
-        .Select(d => new BusinessDocumentResponse
+        public async Task<ServiceResponse<BusinessDocumentResponseDto>> UploadBusinessDocumentAsync(
+            Guid userId, Guid businessId, UploadBusinessDocumentRequestDto requestDto)
         {
-            Id = d.Id,
-            DocumentType = d.DocumentType,
-            FileName = d.FileName,
-            FileUrl = "/" + d.FilePath,
-            UploadedAt = d.UploadedAt
-        })
-        .ToListAsync();
+            var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
+            if (business == null) return ServiceResponse<BusinessDocumentResponseDto>.ErrorResult(_localizer["BusinessNotFound"]);
+            if (business.OwnerId != userId) return ServiceResponse<BusinessDocumentResponseDto>.ErrorResult(_localizer["UnauthorizedAction"]);
+            if (requestDto.File == null || requestDto.File.Length == 0)
+                return ServiceResponse<BusinessDocumentResponseDto>.ErrorResult(_localizer["FileNotFound"]);
+            
+            var ext = Path.GetExtension(requestDto.File.FileName).ToLowerInvariant();
+            var allowed = new HashSet<string> { ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg" };
+            if (!allowed.Contains(ext))
+                return ServiceResponse<BusinessDocumentResponseDto>.ErrorResult(_localizer["InvalidFileExtension"]);
+            
+            var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var uploadFolder = Path.Combine(webRoot, "uploads", "business-documents", businessId.ToString());
+            Directory.CreateDirectory(uploadFolder);
+            var uniqueName = $"{Guid.NewGuid()}{ext}";
+            var fullPath = Path.Combine(uploadFolder, uniqueName);
+            
+            using (var stream = new FileStream(fullPath, FileMode.Create))
+                await requestDto.File.CopyToAsync(stream);
+            
+            var dbPath = Path.Combine("uploads", "business-documents", businessId.ToString(), uniqueName)
+                .Replace("\\", "/");
+            
+            var doc = new BusinessDocument
+            {
+                BusinessId = businessId,
+                DocumentType = requestDto.DocumentType,
+                FileName = requestDto.File.FileName,
+                FilePath = dbPath,
+                FileExtension = ext,
+                UploadedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+            _context.BusinessDocuments.Add(doc);
+            await _context.SaveChangesAsync();
+            
+            return ServiceResponse<BusinessDocumentResponseDto>.SuccessResult(new BusinessDocumentResponseDto
+            {
+                Id = doc.Id,
+                DocumentType = doc.DocumentType,
+                FileName = doc.FileName,
+                FileUrl = "/" + doc.FilePath,  
+                UploadedAt = doc.UploadedAt
+            }, _localizer["DocumentUploaded"]);
+        }
 
-    return ServiceResponse<List<BusinessDocumentResponse>>.SuccessResult(docs);
-}
+        public async Task<ServiceResponse<List<BusinessDocumentResponseDto>>> GetBusinessDocumentsAsync(Guid userId, Guid businessId)
+        {
+            var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
+            if (business == null) return ServiceResponse<List<BusinessDocumentResponseDto>>.ErrorResult(_localizer["BusinessNotFound"]);
+            
+            var docs = await _context.BusinessDocuments
+                .Where(d => d.BusinessId == businessId && d.IsActive)
+                .OrderByDescending(d => d.UploadedAt)
+                .Select(d => new BusinessDocumentResponseDto
+                {
+                    Id = d.Id,
+                    DocumentType = d.DocumentType,
+                    FileName = d.FileName,
+                    FileUrl = "/" + d.FilePath,
+                    UploadedAt = d.UploadedAt
+                })
+                .ToListAsync();
+            return ServiceResponse<List<BusinessDocumentResponseDto>>.SuccessResult(docs);
+        }
 
-public async Task<ServiceResponse<bool>> DeleteBusinessDocumentAsync(Guid userId, Guid documentId)
-{
-    var doc = await _context.BusinessDocuments
-        .Include(d => d.Business)
-        .FirstOrDefaultAsync(d => d.Id == documentId && d.IsActive);
-
-    if (doc == null) return ServiceResponse<bool>.ErrorResult("Belge bulunamadı.");
-    if (doc.Business.OwnerId != userId) return ServiceResponse<bool>.ErrorResult("Yetkiniz yok.");
-
-    var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-    var fullPath = Path.Combine(webRoot, doc.FilePath); // doc.FilePath "uploads/..." olmalı
-    if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
-
-    doc.IsActive = false;
-    await _context.SaveChangesAsync();
-    return ServiceResponse<bool>.SuccessResult(true, "Belge silindi.");
-}
-
+        public async Task<ServiceResponse<bool>> DeleteBusinessDocumentAsync(Guid userId, Guid documentId)
+        {
+            var doc = await _context.BusinessDocuments
+                .Include(d => d.Business)
+                .FirstOrDefaultAsync(d => d.Id == documentId && d.IsActive);
+            
+            if (doc == null) return ServiceResponse<bool>.ErrorResult(_localizer["DocumentNotFound"]);
+            if (doc.Business.OwnerId != userId) return ServiceResponse<bool>.ErrorResult(_localizer["UnauthorizedAction"]);
+            
+            var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var fullPath = Path.Combine(webRoot, doc.FilePath);
+            if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
+            
+            doc.IsActive = false;
+            await _context.SaveChangesAsync();
+            return ServiceResponse<bool>.SuccessResult(true, _localizer["DocumentDeleted"]);
+        }
     }
 }

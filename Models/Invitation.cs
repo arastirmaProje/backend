@@ -14,8 +14,7 @@ namespace Personelim.Models
         public DateTime CreatedAt { get; set; }
         public DateTime ExpiresAt { get; set; }
         public DateTime? AcceptedAt { get; set; }
-
-        // Navigation Properties
+        
         public Business? Business { get; set; }
         public User? InvitedBy { get; set; }
 

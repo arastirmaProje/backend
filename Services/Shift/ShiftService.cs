@@ -1,37 +1,41 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Personelim.Data;
 using Personelim.DTOs.Shift;
 using Personelim.Helpers;
+using Personelim.Resources;
 
 namespace Personelim.Services.Shift
 {
     public class ShiftService : IShiftService
     {
         private readonly AppDbContext _context;
+        private readonly IStringLocalizer<SharedResource> _localizer;
 
-        public ShiftService(AppDbContext context)
+        public ShiftService(AppDbContext context, IStringLocalizer<SharedResource> localizer)
         {
             _context = context;
+            _localizer = localizer;
         }
 
-        public async Task<ServiceResponse<ShiftResponse>> SubmitShiftAsync(Guid userId, SubmitShiftRequest request)
+        public async Task<ServiceResponse<ShiftResponseDto>> SubmitShiftAsync(Guid userId, SubmitShiftRequestDto requestDto)
         {
             try
             {
-                if (request.BusinessId == Guid.Empty)
-                    return ServiceResponse<ShiftResponse>.ErrorResult("BusinessId zorunludur.");
+                if (requestDto.BusinessId == Guid.Empty)
+                    return ServiceResponse<ShiftResponseDto>.ErrorResult(_localizer["BusinessIdRequired"]);
+                
+                if (requestDto.EndTime <= requestDto.StartTime)
+                    return ServiceResponse<ShiftResponseDto>.ErrorResult(_localizer["EndTimeBeforeStartTime"]);
 
-                if (request.EndTime <= request.StartTime)
-                    return ServiceResponse<ShiftResponse>.ErrorResult("Bitiş zamanı başlangıçtan sonra olmalı.");
-
-                var totalHours = (decimal)(request.EndTime - request.StartTime).TotalHours;
-
+                var totalHours = (decimal)(requestDto.EndTime - requestDto.StartTime).TotalHours;
+                
                 var shift = new Models.Shift
                 {
-                    BusinessId = request.BusinessId,
+                    BusinessId = requestDto.BusinessId,
                     UserId = userId,
-                    StartTime = request.StartTime,
-                    EndTime = request.EndTime,
+                    StartTime = requestDto.StartTime,
+                    EndTime = requestDto.EndTime,
                     TotalHours = Math.Round(totalHours, 2),
                     CreatedAt = DateTime.UtcNow
                 };
@@ -39,7 +43,7 @@ namespace Personelim.Services.Shift
                 _context.Shifts.Add(shift);
                 await _context.SaveChangesAsync();
 
-                return ServiceResponse<ShiftResponse>.SuccessResult(new ShiftResponse
+                return ServiceResponse<ShiftResponseDto>.SuccessResult(new ShiftResponseDto
                 {
                     Id = shift.Id,
                     BusinessId = shift.BusinessId,
@@ -48,15 +52,15 @@ namespace Personelim.Services.Shift
                     EndTime = shift.EndTime,
                     TotalHours = (double)shift.TotalHours,
                     CreatedAt = shift.CreatedAt
-                }, "Mesai kaydedildi.");
+                }, _localizer["ShiftSaved"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<ShiftResponse>.ErrorResult("Mesai kaydedilemedi", ex.Message);
+                return ServiceResponse<ShiftResponseDto>.ErrorResult(_localizer["ShiftSaveError"], ex.Message);
             }
         }
 
-        public async Task<ServiceResponse<List<ShiftResponse>>> GetMyShiftsAsync(Guid userId, Guid businessId)
+        public async Task<ServiceResponse<List<ShiftResponseDto>>> GetMyShiftsAsync(Guid userId, Guid businessId)
         {
             try
             {
@@ -65,7 +69,7 @@ namespace Personelim.Services.Shift
                     .OrderByDescending(s => s.StartTime)
                     .ToListAsync();
 
-                var list = shifts.Select(s => new ShiftResponse
+                var list = shifts.Select(s => new ShiftResponseDto
                 {
                     Id = s.Id,
                     BusinessId = s.BusinessId,
@@ -76,11 +80,11 @@ namespace Personelim.Services.Shift
                     CreatedAt = s.CreatedAt
                 }).ToList();
 
-                return ServiceResponse<List<ShiftResponse>>.SuccessResult(list);
+                return ServiceResponse<List<ShiftResponseDto>>.SuccessResult(list);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<List<ShiftResponse>>.ErrorResult("Mesailer getirilemedi", ex.Message);
+                return ServiceResponse<List<ShiftResponseDto>>.ErrorResult(_localizer["ShiftsFetchError"], ex.Message);
             }
         }
     }

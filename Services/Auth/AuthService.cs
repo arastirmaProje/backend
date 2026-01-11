@@ -1,13 +1,15 @@
-using Microsoft.AspNetCore.Hosting; // EKLENDİ (Dosya yolu için)
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Localization;
 using Microsoft.IdentityModel.Tokens;
 using Personelim.Data;
 using Personelim.DTOs.Auth;
 using Personelim.Helpers;
 using Personelim.Models;
 using Personelim.Services.Email;
+using Personelim.Resources; // Resource namespace
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -19,40 +21,41 @@ namespace Personelim.Services.Auth
         private readonly AppDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
-        private readonly IWebHostEnvironment _env; // EKLENDİ
+        private readonly IWebHostEnvironment _env;
+        private readonly IStringLocalizer<SharedResource> _localizer;
 
         public AuthService(
             AppDbContext context, 
             IConfiguration configuration,
             IEmailService emailService,
-            IWebHostEnvironment env) // EKLENDİ
+            IWebHostEnvironment env,
+            IStringLocalizer<SharedResource> localizer) 
         {
             _context = context;
             _configuration = configuration;
             _emailService = emailService;
             _env = env;
-            
+            _localizer = localizer;
         }
 
-        public async Task<ServiceResponse<AuthResponse>> RegisterAsync(RegisterRequest request)
+        public async Task<ServiceResponse<AuthResponseDto>> RegisterAsync(RegisterRequestDto requestDto)
         {
             try
             {
                 var emailExists = await _context.Users
-                    .AnyAsync(u => u.Email == request.Email.ToLower());
+                    .AnyAsync(u => u.Email == requestDto.Email.ToLower());
                 if (emailExists)
                 {
-                    return ServiceResponse<AuthResponse>.ErrorResult("Bu email adresi zaten kullanımda.");
+                    return ServiceResponse<AuthResponseDto>.ErrorResult(_localizer["EmailAlreadyExists"]);
                 }
                 
-                
-                string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+                string passwordHash = BCrypt.Net.BCrypt.HashPassword(requestDto.Password);
                 
                 var newUser = new User
                 {
-                    FirstName = request.firstName,
-                    LastName = request.lastName,
-                    Email = request.Email.ToLower(), 
+                    FirstName = requestDto.firstName,
+                    LastName = requestDto.lastName,
+                    Email = requestDto.Email.ToLower(), 
                     PasswordHash = passwordHash,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
@@ -64,7 +67,7 @@ namespace Personelim.Services.Auth
                 await _context.SaveChangesAsync();
                 
                 var token = GenerateJwtToken(newUser);
-                var response = new AuthResponse
+                var response = new AuthResponseDto
                 {
                     UserId = newUser.Id,
                     Email = newUser.Email,
@@ -75,272 +78,69 @@ namespace Personelim.Services.Auth
                     Token = token.Token,
                     ExpiresAt = token.ExpiresAt
                 };
-                return ServiceResponse<AuthResponse>.SuccessResult(response, "Kullanıcı kaydı başarıyla oluşturuldu.");
+                return ServiceResponse<AuthResponseDto>.SuccessResult(response, _localizer["UserRegisteredSuccessfully"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<AuthResponse>.ErrorResult("Kayıt oluşturulurken bir hata meydana geldi.", ex.Message);
+                return ServiceResponse<AuthResponseDto>.ErrorResult(_localizer["ErrorDuringRegistration"], ex.Message);
             }
         }
 
-        public async Task<ServiceResponse<AuthResponse>> LoginAsync(LoginRequest request)
-{
-    try
-    {
-        // 1. Önce kullanıcıyı bul
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
-
-        // 2. Kullanıcı kontrolünü HEMEN yap (Yoksa aşağıda user.Id hatası alırsın)
-        if (user == null || !user.IsActive)
-        {
-            return ServiceResponse<AuthResponse>.ErrorResult("Email veya şifre hatalı");
-        }
-
-        // 3. Şifre kontrolünü yap
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            return ServiceResponse<AuthResponse>.ErrorResult("Email veya şifre hatalı");
-        }
-
-        // 4. Kullanıcı doğrulandığına göre şimdi rolüne bakabiliriz
-        var membership = await _context.BusinessMembers
-            .FirstOrDefaultAsync(bm => bm.UserId == user.Id && bm.IsActive);
-        
-        // Varsayılan olarak "Owner" dedik (Henüz şirketi yoksa kurması için)
-        // Eğer üyeliği varsa gerçek rolünü alıyoruz.
-        string userRole = "Owner"; 
-
-        if (membership != null)
-        {
-            userRole = membership.Role.ToString();
-        }
-        
-        // 5. Giriş saatini güncelle
-        user.LastLoginAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        
-        var token = GenerateJwtToken(user);
-        
-        var response = new AuthResponse
-        {
-            UserId = user.Id,
-            Email = user.Email,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            Role = userRole, 
-            ImageUrl = user.ImageUrl, 
-            Token = token.Token,
-            ExpiresAt = token.ExpiresAt
-        };
-        return ServiceResponse<AuthResponse>.SuccessResult(response, "Giriş başarılı");
-    }
-    catch (Exception ex)
-    {
-        return ServiceResponse<AuthResponse>.ErrorResult("Giriş sırasında hata oluştu", ex.Message);
-    }
-}
-
-        public async Task<ServiceResponse<UserProfileResponse>> GetUserProfileAsync(Guid userId)
+        public async Task<ServiceResponse<AuthResponseDto>> LoginAsync(LoginRequestDto requestDto)
         {
             try
             {
                 var user = await _context.Users
-                    .Include(u => u.BusinessMemberships)
-                    .Include(u => u.OwnedBusinesses)
-                    .FirstOrDefaultAsync(u => u.Id == userId);
-                if (user == null)
+                    .FirstOrDefaultAsync(u => u.Email == requestDto.Email.ToLower());
+                
+                if (user == null || !user.IsActive)
                 {
-                    return ServiceResponse<UserProfileResponse>.ErrorResult("Kullanıcı bulunamadı");
+                    return ServiceResponse<AuthResponseDto>.ErrorResult(_localizer["InvalidCredentials"]);
                 }
-                var response = new UserProfileResponse
+                
+                if (!BCrypt.Net.BCrypt.Verify(requestDto.Password, user.PasswordHash))
                 {
-                    Id = user.Id,
+                    return ServiceResponse<AuthResponseDto>.ErrorResult(_localizer["InvalidCredentials"]);
+                }
+                
+                var membership = await _context.BusinessMembers
+                    .FirstOrDefaultAsync(bm => bm.UserId == user.Id && bm.IsActive);
+                
+                string userRole = "Owner"; 
+                if (membership != null)
+                {
+                    userRole = membership.Role.ToString();
+                }
+                
+                user.LastLoginAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                
+                var token = GenerateJwtToken(user);
+                
+                var response = new AuthResponseDto
+                {
+                    UserId = user.Id,
                     Email = user.Email,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    ImageUrl = user.ImageUrl, // EKLENDİ
-                    CreatedAt = user.CreatedAt,
-                    LastLoginAt = user.LastLoginAt,
-                    BusinessCount = user.BusinessMemberships.Count(bm => bm.IsActive),
-                    OwnedBusinessCount = user.OwnedBusinesses.Count(b => b.IsActive)
+                    Role = userRole, 
+                    ImageUrl = user.ImageUrl, 
+                    Token = token.Token,
+                    ExpiresAt = token.ExpiresAt
                 };
-                return ServiceResponse<UserProfileResponse>.SuccessResult(response);
+                return ServiceResponse<AuthResponseDto>.SuccessResult(response, _localizer["LoginSuccessful"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<UserProfileResponse>.ErrorResult(
-                    "Profil bilgisi getirilirken hata oluştu",
-                    ex.Message
-                );
+                return ServiceResponse<AuthResponseDto>.ErrorResult(_localizer["ErrorDuringLogin"], ex.Message);
             }
         }
-
-        // =================================================================
-        // GÜNCELLENEN METOD (BURASI EKSİKTİ)
-        // =================================================================
-        public async Task<ServiceResponse<UserProfileResponse>> UpdateUserProfileAsync(Guid userId, UpdateUserProfileRequest request)
-        {
-            try
-            {
-                var user = await _context.Users.FindAsync(userId);
-                if (user == null)
-                {
-                    return ServiceResponse<UserProfileResponse>.ErrorResult("Kullanıcı bulunamadı");
-                }
-
-                // Email Güncelleme
-                if (!string.IsNullOrWhiteSpace(request.Email) && request.Email.ToLower() != user.Email)
-                {
-                    var emailExists = await _context.Users
-                        .AnyAsync(u => u.Email == request.Email.ToLower() && u.Id != userId);
-                    if (emailExists)
-                    {
-                        return ServiceResponse<UserProfileResponse>.ErrorResult("Bu email adresi zaten kullanılıyor");
-                    }
-                    user.Email = request.Email.ToLower();
-                }
-
-                // İsim Güncelleme
-                if (!string.IsNullOrWhiteSpace(request.FirstName)) user.FirstName = request.FirstName;
-                if (!string.IsNullOrWhiteSpace(request.LastName)) user.LastName = request.LastName;
-
-                // --- RESİM YÜKLEME KODU (YENİ EKLENDİ) ---
-                if (request.Image != null && request.Image.Length > 0)
-                {
-                    try 
-                    {
-                        // 1. WebRootPath boş gelirse (Docker'da olabilir) manuel ata
-                        string webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-
-                        // 2. Klasör Yolu
-                        var uploadPath = Path.Combine(webRootPath, "uploads", "user-avatars");
-                        
-                        // 3. Klasör yoksa oluştur
-                        if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
-
-                        // 4. Dosya Kaydet
-                        var fileExtension = Path.GetExtension(request.Image.FileName);
-                        var fileName = $"{user.Id}_{Guid.NewGuid()}{fileExtension}";
-                        var filePath = Path.Combine(uploadPath, fileName);
-
-                        using (var stream = new FileStream(filePath, FileMode.Create))
-                        {
-                            await request.Image.CopyToAsync(stream);
-                        }
-
-                        // 5. Veritabanına Yolu Yaz
-                        user.ImageUrl = $"/uploads/user-avatars/{fileName}";
-                    }
-                    catch(Exception imgEx)
-                    {
-                        // Resim hatası alırsak loglayabiliriz ama işlemi durdurmayalım
-                        Console.WriteLine("Resim yükleme hatası: " + imgEx.Message);
-                    }
-                }
-                // ------------------------------------------
-
-                user.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-                
-                var response = new UserProfileResponse
-                {
-                    Id = user.Id,
-                    Email = user.Email,
-                    FirstName = user.FirstName,
-                    LastName = user.LastName,
-                    ImageUrl = user.ImageUrl, // Response'ta dolu dönsün
-                    CreatedAt = user.CreatedAt,
-                    LastLoginAt = user.LastLoginAt
-                };
-                return ServiceResponse<UserProfileResponse>.SuccessResult(response, "Profil başarıyla güncellendi");
-            }
-            catch (Exception ex)
-            {
-                return ServiceResponse<UserProfileResponse>.ErrorResult(
-                    "Profil güncellenirken hata oluştu",
-                    ex.Message
-                );
-            }
-        }
-
-        public async Task<ServiceResponse<bool>> ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
-        {
-            try
-            {
-                var user = await _context.Users.FindAsync(userId);
-                if (user == null) return ServiceResponse<bool>.ErrorResult("Kullanıcı bulunamadı");
-                
-                if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
-                    return ServiceResponse<bool>.ErrorResult("Mevcut şifre hatalı");
-                
-                if (request.NewPassword != request.ConfirmPassword)
-                    return ServiceResponse<bool>.ErrorResult("Yeni şifreler eşleşmiyor");
-                
-                if (request.NewPassword.Length < 6)
-                    return ServiceResponse<bool>.ErrorResult("Şifre en az 6 karakter olmalıdır");
-                
-                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-                user.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-                return ServiceResponse<bool>.SuccessResult(true, "Şifre başarıyla değiştirildi");
-            }
-            catch (Exception ex)
-            {
-                return ServiceResponse<bool>.ErrorResult(ex.Message);
-            }
-        }
-        
+       
         public async Task<ServiceResponse<bool>> LogoutAsync(Guid userId)
         {
-           
-            return ServiceResponse<bool>.SuccessResult(true, "Çıkış başarılı");
+            return ServiceResponse<bool>.SuccessResult(true, _localizer["LogoutSuccessful"]);
         }
-
-        public async Task<ServiceResponse<bool>> DeleteUserAsync(Guid userId)
-        {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var user = await _context.Users
-                    .Include(u => u.OwnedBusinesses)
-                    .Include(u => u.BusinessMemberships)
-                    .FirstOrDefaultAsync(u => u.Id == userId);
-                if (user == null) return ServiceResponse<bool>.ErrorResult("Kullanıcı bulunamadı");
-                
-                int affectedRecords = 0;
-                
-                var ownedBusinesses = await _context.Businesses.Where(b => b.OwnerId == userId && b.IsActive).ToListAsync();
-                foreach (var business in ownedBusinesses)
-                {
-                    business.IsActive = false;
-                    business.UpdatedAt = DateTime.UtcNow;
-                    affectedRecords++;
-                }
-
-                var memberships = await _context.BusinessMembers.Where(bm => bm.UserId == userId && bm.IsActive).ToListAsync();
-                foreach (var membership in memberships)
-                {
-                    membership.IsActive = false;
-                    membership.UpdatedAt = DateTime.UtcNow;
-                    affectedRecords++;
-                }
-                
-                user.IsActive = false;
-                user.UpdatedAt = DateTime.UtcNow;
-                affectedRecords++;
-                
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                return ServiceResponse<bool>.SuccessResult(true, $"Hesabınız başarıyla silindi. {affectedRecords} kayıt güncellendi.");
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return ServiceResponse<bool>.ErrorResult("Hesap silinirken hata oluştu", ex.Message);
-            }
-        }
-
+       
         private (string Token, DateTime ExpiresAt) GenerateJwtToken(User user)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -357,7 +157,7 @@ namespace Personelim.Services.Auth
                 Expires = expiresAt,
                 SigningCredentials = new SigningCredentials(
                     new SymmetricSecurityKey(key),
-                    SecurityAlgorithms.HmacSha256Signature),
+                    SecurityAlgorithms.HmacSha256Signature ?? SecurityAlgorithms.HmacSha256),
                 Issuer = _configuration["Jwt:Issuer"],
                 Audience = _configuration["Jwt:Audience"]
             };
@@ -374,7 +174,7 @@ namespace Personelim.Services.Auth
                 {
                     return ServiceResponse<ForgotPasswordResponse>.SuccessResult(
                         new ForgotPasswordResponse { Email = request.Email, ExpiresAt = DateTime.UtcNow.AddMinutes(15), ExpiresInMinutes = 15 },
-                        "Eğer bu email kayıtlıysa, şifre sıfırlama kodu gönderildi"
+                        _localizer["PasswordResetEmailIfExist"]
                     );
                 }
                 
@@ -390,10 +190,10 @@ namespace Personelim.Services.Auth
                 await _context.SaveChangesAsync();
                 
                 var emailSent = await _emailService.SendPasswordResetCodeAsync(user.Email, code, user.GetFullName());
-                if (!emailSent) return ServiceResponse<ForgotPasswordResponse>.ErrorResult("Email gönderilemedi.");
+                if (!emailSent) return ServiceResponse<ForgotPasswordResponse>.ErrorResult(_localizer["EmailCouldNotBeSent"]);
                 
                 var response = new ForgotPasswordResponse { Email = user.Email, ExpiresAt = expiresAt, ExpiresInMinutes = 15 };
-                return ServiceResponse<ForgotPasswordResponse>.SuccessResult(response, "Şifre sıfırlama kodu gönderildi");
+                return ServiceResponse<ForgotPasswordResponse>.SuccessResult(response, _localizer["PasswordResetCodeSent"]);
             }
             catch (Exception ex)
             {
@@ -406,13 +206,13 @@ namespace Personelim.Services.Auth
             try
             {
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email.ToLower() && u.IsActive);
-                if (user == null) return ServiceResponse<bool>.ErrorResult("Geçersiz kod");
+                if (user == null) return ServiceResponse<bool>.ErrorResult(_localizer["InvalidCode"]);
                 
                 var token = await _context.PasswordResetTokens
                     .FirstOrDefaultAsync(t => t.UserId == user.Id && t.Code == request.Code && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);
-                if (token == null) return ServiceResponse<bool>.ErrorResult("Geçersiz kod");
+                if (token == null) return ServiceResponse<bool>.ErrorResult(_localizer["InvalidCode"]);
                 
-                return ServiceResponse<bool>.SuccessResult(true, "Kod doğrulandı");
+                return ServiceResponse<bool>.SuccessResult(true, _localizer["CodeVerified"]);
             }
             catch (Exception ex) { return ServiceResponse<bool>.ErrorResult(ex.Message); }
         }
@@ -423,11 +223,11 @@ namespace Personelim.Services.Auth
             try
             {
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email.ToLower() && u.IsActive);
-                if (user == null) return ServiceResponse<bool>.ErrorResult("Geçersiz işlem");
+                if (user == null) return ServiceResponse<bool>.ErrorResult(_localizer["InvalidProcess"]);
                 
                 var token = await _context.PasswordResetTokens
                     .FirstOrDefaultAsync(t => t.UserId == user.Id && t.Code == request.Code && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);
-                if (token == null) return ServiceResponse<bool>.ErrorResult("Geçersiz kod");
+                if (token == null) return ServiceResponse<bool>.ErrorResult(_localizer["InvalidCode"]);
                 
                 user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
                 user.UpdatedAt = DateTime.UtcNow;
@@ -435,7 +235,7 @@ namespace Personelim.Services.Auth
                 token.UsedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
-                return ServiceResponse<bool>.SuccessResult(true, "Şifreniz başarıyla değiştirildi");
+                return ServiceResponse<bool>.SuccessResult(true, _localizer["PasswordChangedSuccessfully"]);
             }
             catch (Exception ex)
             {

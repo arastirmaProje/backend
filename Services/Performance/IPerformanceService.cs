@@ -6,10 +6,10 @@ namespace Personelim.Services.Performance
     public interface IPerformanceService
     {
         Task<ServiceResponse<AiPerformanceBulkScoreResponse>> QueryBulkScoresAsync(Guid currentUserId, PerformanceBulkQueryRequest request);
-        Task<ServiceResponse<AiPerformanceResponse>> QueryAsync(Guid currentUserId, PerformanceQueryRequest request);
+        Task<ServiceResponse<AiPerformanceResponseDto>> QueryAsync(Guid currentUserId, PerformanceQueryRequestDto requestDto);
 
-        Task<ServiceResponse<List<PerformanceReportListItem>>> GetReportsByEmployeeAsync(Guid currentUserId, Guid businessId, Guid employeeUserId);
+        Task<ServiceResponse<List<PerformanceReportListItemDto>>> GetReportsByEmployeeAsync(Guid currentUserId, Guid businessId, Guid employeeUserId);
 
-        Task<ServiceResponse<AiPerformanceResponse>> GetReportByIdAsync(Guid currentUserId, Guid reportId);
+        Task<ServiceResponse<AiPerformanceResponseDto>> GetReportByIdAsync(Guid currentUserId, Guid reportId);
     }
 }

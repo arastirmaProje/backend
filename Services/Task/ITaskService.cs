@@ -6,17 +6,17 @@ namespace Personelim.Services.Task
 {
     public interface ITaskService
     {
-        // Görev Oluştur (İşletme Sahibi)
-        System.Threading.Tasks.Task<ServiceResponse<TaskResponse>> CreateTaskAsync(Guid currentUserId, CreateTaskRequest request);
+        // Görev Oluştur 
+        System.Threading.Tasks.Task<ServiceResponse<TaskResponseDto>> CreateTaskAsync(Guid currentUserId, CreateTaskRequestDto requestDto);
         
-        // İşletmeye ait tüm görevleri getir (İşletme Sahibi için)
-        System.Threading.Tasks.Task<ServiceResponse<List<TaskResponse>>> GetTasksByBusinessAsync(Guid currentUserId, Guid businessId);
+        // İşletmeye ait tüm görevleri getir
+        System.Threading.Tasks.Task<ServiceResponse<List<TaskResponseDto>>> GetTasksByBusinessAsync(Guid currentUserId, Guid businessId);
         
-        // Bana atanan görevleri getir (Personel için)
-        System.Threading.Tasks.Task<ServiceResponse<List<TaskResponse>>> GetMyTasksAsync(Guid currentUserId);
+        // Bana atanan görevleri getir 
+        System.Threading.Tasks.Task<ServiceResponse<List<TaskResponseDto>>> GetMyTasksAsync(Guid currentUserId);
         
-        // Görev detayını/durumunu güncelle (Personel veya Sahip)
-        System.Threading.Tasks.Task<ServiceResponse<TaskResponse>> UpdateTaskStatusAsync(Guid currentUserId, Guid taskId, UpdateTaskStatusRequest request);
+        // Görev detayını/durumunu güncelle 
+        System.Threading.Tasks.Task<ServiceResponse<TaskResponseDto>> UpdateTaskStatusAsync(Guid currentUserId, Guid taskId, UpdateTaskStatusRequestDto requestDto);
 
         // Görevi Sil
         System.Threading.Tasks.Task<ServiceResponse<bool>> DeleteTaskAsync(Guid currentUserId, Guid taskId);

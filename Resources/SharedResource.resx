@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+    <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+        <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+        <xsd:element name="root" msdata:IsDataSet="true">
+            <xsd:complexType>
+                <xsd:choice maxOccurs="unbounded">
+                    <xsd:element name="metadata">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+                            </xsd:sequence>
+                            <xsd:attribute name="name" use="required" type="xsd:string" />
+                            <xsd:attribute name="type" type="xsd:string" />
+                            <xsd:attribute name="mimetype" type="xsd:string" />
+                            <xsd:attribute ref="xml:space" />
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="assembly">
+                        <xsd:complexType>
+                            <xsd:attribute name="alias" type="xsd:string" />
+                            <xsd:attribute name="name" type="xsd:string" />
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="data">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+                            </xsd:sequence>
+                            <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+                            <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+                            <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+                            <xsd:attribute ref="xml:space" />
+                        </xsd:complexType>
+                    </xsd:element>
+                </xsd:choice>
+            </xsd:complexType>
+        </xsd:element>
+    </xsd:schema>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>2.0</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <!-- AUTH  -->
+    <data name="EmailAlreadyExists" xml:space="preserve"><value>Bu email adresi zaten kullanımda.</value></data>
+    <data name="UserRegisteredSuccessfully" xml:space="preserve"><value>Kullanıcı kaydı başarıyla oluşturuldu.</value></data>
+    <data name="ErrorDuringRegistration" xml:space="preserve"><value>Kayıt oluşturulurken bir hata meydana geldi.</value></data>
+    <data name="InvalidCredentials" xml:space="preserve"><value>Email veya şifre hatalı</value></data>
+    <data name="LoginSuccessful" xml:space="preserve"><value>Giriş başarılı</value></data>
+    <data name="ErrorDuringLogin" xml:space="preserve"><value>Giriş sırasında hata oluştu</value></data>
+    <data name="LogoutSuccessful" xml:space="preserve"><value>Çıkış başarılı</value></data>
+    <data name="PasswordResetEmailIfExist" xml:space="preserve"><value>Eğer bu email kayıtlıysa, şifre sıfırlama kodu gönderildi</value></data>
+    <data name="EmailCouldNotBeSent" xml:space="preserve"><value>Email gönderilemedi.</value></data>
+    <data name="PasswordResetCodeSent" xml:space="preserve"><value>Şifre sıfırlama kodu gönderildi</value></data>
+    <data name="InvalidCode" xml:space="preserve"><value>Geçersiz kod</value></data>
+    <data name="CodeVerified" xml:space="preserve"><value>Kod doğrulandı</value></data>
+    <data name="InvalidProcess" xml:space="preserve"><value>Geçersiz işlem</value></data>
+    <data name="PasswordChangedSuccessfully" xml:space="preserve"><value>Şifreniz başarıyla değiştirildi</value></data>
+    
+    <!-- BUSİNESS  -->
+    <data name="BusinessesListed" xml:space="preserve"><value>İşletmeleriniz listelendi.</value></data>
+    <data name="BusinessNotFound" xml:space="preserve"><value>İşletme bulunamadı.</value></data>
+    <data name="UnauthorizedAction" xml:space="preserve"><value>Bu işlem için yetkiniz yok.</value></data>
+    <data name="BusinessUpdated" xml:space="preserve"><value>İşletme başarıyla güncellendi.</value></data>
+    <data name="UserNotFound" xml:space="preserve"><value>Kullanıcı bulunamadı.</value></data>
+    <data name="BusinessCreatedVerificationSent" xml:space="preserve"><value>Şirket oluşturuldu. Doğrulama kodu gönderildi.</value></data>
+    <data name="BusinessVerificationError" xml:space="preserve"><value>Şirket kaydedilemedi.</value></data>
+    <data name="EnterVerificationCode" xml:space="preserve"><value>Lütfen doğrulama kodunu giriniz.</value></data>
+    <data name="InvalidCodeOrBusiness" xml:space="preserve"><value>Geçersiz kod veya işletme bulunamadı.</value></data>
+    <data name="BusinessVerified" xml:space="preserve"><value>İşletmeniz başarıyla doğrulandı.</value></data>
+    <data name="VerificationError" xml:space="preserve"><value>Doğrulama hatası: </value></data>
+    <data name="FileNotFound" xml:space="preserve"><value>Dosya seçilmedi.</value></data>
+    <data name="InvalidFileExtension" xml:space="preserve"><value>Geçersiz dosya uzantısı.</value></data>
+    <data name="DocumentUploaded" xml:space="preserve"><value>Belge yüklendi.</value></data>
+    <data name="DocumentNotFound" xml:space="preserve"><value>Belge bulunamadı.</value></data>
+    <data name="DocumentDeleted" xml:space="preserve"><value>Belge silindi.</value></data>
+    <data name="ErrorListingBusinesses" xml:space="preserve"><value>İşletmeler listelenirken hata oluştu.</value></data>
+    <data name="GeneralError" xml:space="preserve"><value>Hata oluştu.</value></data>
+    <data name="ImageUploadError" xml:space="preserve"><value>Resim yükleme sırasında hata oluştu.</value></data>
+    
+      <!-- BusinessMember -->
+  <data name="NoPermissionViewPersonnel" xml:space="preserve"><value>Bu işletmenin personelini görüntüleme yetkiniz yok.</value></data>
+  <data name="ErrorPersonnelList" xml:space="preserve"><value>Personel listesi alınırken hata oluştu.</value></data>
+  <data name="PersonnelNotFound" xml:space="preserve"><value>Personel bulunamadı.</value></data>
+  <data name="ErrorPersonnelDetail" xml:space="preserve"><value>Personel detayı alınırken hata oluştu.</value></data>
+  <data name="ErrorUpdatePersonnel" xml:space="preserve"><value>Güncelleme sırasında hata oluştu.</value></data>
+  <data name="PersonnelUpdated" xml:space="preserve"><value>Personel bilgileri güncellendi.</value></data>
+  <data name="TCInvalid" xml:space="preserve"><value>TC Kimlik Numarası 11 haneli rakamlardan oluşmalıdır.</value></data>
+  <data name="CannotRemoveSelf" xml:space="preserve"><value>Kendinizi bu ekrandan çıkartamazsınız.</value></data>
+  <data name="NoPermissionRemovePersonnel" xml:space="preserve"><value>Personel çıkartma yetkiniz yok.</value></data>
+  <data name="PersonnelRemoved" xml:space="preserve"><value>Personel işletmeden çıkartıldı.</value></data>
+  <data name="ErrorRemovePersonnel" xml:space="preserve"><value>Personel çıkartılırken hata oluştu.</value></data>
+  <data name="OnlyPdfAllowed" xml:space="preserve"><value>Sadece PDF dosyaları yüklenebilir.</value></data>
+  <data name="DocumentUploadSuccess" xml:space="preserve"><value>Belge başarıyla yüklendi.</value></data>
+  <data name="ErrorDocumentUpload" xml:space="preserve"><value>Dosya yüklenirken hata oluştu.</value></data>
+  <data name="NoPermissionUpdateDocument" xml:space="preserve"><value>Belge güncelleme yetkiniz yok.</value></data>
+  <data name="DocumentUpdateSuccess" xml:space="preserve"><value>Belge başarıyla güncellendi.</value></data>
+  <data name="ErrorDocumentUpdate" xml:space="preserve"><value>Belge güncellenirken hata oluştu.</value></data>
+  <data name="NoPermissionViewDocument" xml:space="preserve"><value>Bu belgeyi görüntüleme yetkiniz yok.</value></data>
+  <data name="FileNotFoundOnServer" xml:space="preserve"><value>Dosya sunucuda bulunamadı (Silinmiş olabilir).</value></data>
+  <data name="NoPermissionDeleteDocument" xml:space="preserve"><value>Belge silme yetkiniz yok.</value></data>
+  <data name="DocumentDeleteSuccess" xml:space="preserve"><value>Belge başarıyla silindi.</value></data>
+  <data name="ErrorDocumentDelete" xml:space="preserve"><value>Belge silinirken hata oluştu.</value></data>
+  <data name="NoPermissionAddPersonnel" xml:space="preserve"><value>Personel ekleme yetkiniz yok.</value></data>
+  <data name="AlreadyMember" xml:space="preserve"><value>Bu kullanıcı zaten ekibinizde.</value></data>
+  <data name="AccountCreatedMailSent" xml:space="preserve"><value>Personel oluşturuldu ve şifre mail atıldı.</value></data>
+  <data name="MailNotSent" xml:space="preserve"><value>Mail GİTMEDİ. Şifre: {0}</value></data>
+  <data name="ExistingUserAdded" xml:space="preserve"><value>Mevcut kullanıcı işletmeye eklendi.</value></data>
+    
+    <!-- EMAIL  -->
+    <data name="BusinessVerificationTitle" xml:space="preserve"><value>İşletme Doğrulama Kodu</value></data>
+    <data name="EmailHello" xml:space="preserve"><value>Merhaba</value></data>
+    <data name="VerificationCodeFor" xml:space="preserve"><value>{0} için doğrulama kodunuz:</value></data>
+    <data name="PasswordResetTitle" xml:space="preserve"><value>Şifre Sıfırlama</value></data>
+    <data name="PasswordResetSubject" xml:space="preserve"><value>Şifre Sıfırlama Kodu</value></data>
+    <data name="AccountCreatedTitle" xml:space="preserve"><value>Hesabınız Oluşturuldu</value></data>
+    <data name="PasswordField" xml:space="preserve"><value>Şifre:</value></data>
+    <data name="AccountCreatedSubject" xml:space="preserve"><value>Personelim Hesabınız Oluşturuldu</value></data>
+    <data name="NewBusinessTitle" xml:space="preserve"><value>Yeni İşletme</value></data>
+    <data name="BusinessAddedYou" xml:space="preserve"><value>{0} sizi ekibine ekledi.</value></data>
+    <data name="BusinessAddedSubject" xml:space="preserve"><value>{0} Sizi Ekledi</value></data>
+    <data name="BusinessInvitationTitle" xml:space="preserve"><value>İşletme Daveti</value></data>
+    <data name="BusinessInvitingYou" xml:space="preserve"><value>{0} sizi davet ediyor.</value></data>
+    
+    <!-- INVITATION  -->
+    <data name="AlreadyPersonnel" xml:space="preserve"><value>Bu kullanıcı zaten personeliniz.</value></data>
+    <data name="DirectlyAdded" xml:space="preserve"><value>Doğrudan eklendi</value></data>
+    <data name="NewUserAddedComplete" xml:space="preserve"><value>Yeni kullanıcı oluşturuldu, personellere eklendi ve şifresi mail atıldı.</value></data>
+    <data name="ExistingUserAddedComplete" xml:space="preserve"><value>Mevcut kullanıcı personellere eklendi ve bilgilendirildi.</value></data>
+    <data name="MailSentErrorSuffix" xml:space="preserve"><value> (Ancak mail gönderilirken hata oluştu)</value></data>
+    <data name="ProcessSuccessful" xml:space="preserve"><value>İşlem Başarılı</value></data>
+    <data name="PersonnelRole" xml:space="preserve"><value>Personel</value></data>
+    
+    <!-- LEAVE  -->
+    <data name="StartDateAfterEndDate" xml:space="preserve"><value>Başlangıç tarihi bitiş tarihinden sonra olamaz.</value></data>
+    <data name="BusinessMembershipNotFound" xml:space="preserve"><value>İşletme üyeliği bulunamadı.</value></data>
+    <data name="LeaveRequestCreated" xml:space="preserve"><value>İzin talebi oluşturuldu.</value></data>
+    <data name="MembershipNotFound" xml:space="preserve"><value>Üyelik bulunamadı.</value></data>
+    <data name="LeaveRequestNotFound" xml:space="preserve"><value>İzin talebi bulunamadı.</value></data>
+    <data name="LeaveStatusUpdated" xml:space="preserve"><value>İzin durumu {0} olarak güncellendi.</value></data>
+    <data name="CannotDeleteProcessedLeave" xml:space="preserve"><value>Onaylanmış veya reddedilmiş izinleri silemezsiniz. Yöneticinizle görüşün.</value></data>
+    <data name="LeaveRequestDeleted" xml:space="preserve"><value>İzin talebi silindi.</value></data>
+    <data name="YouLabel" xml:space="preserve"><value>Siz</value></data>
+    
+    <!-- PERFORMANCE  -->
+    <data name="BusinessOrUserNotFound" xml:space="preserve"><value>İşletme veya kullanıcı bulunamadı.</value></data>
+    <data name="EmployeeNotActiveInBusiness" xml:space="preserve"><value>Çalışan bu işletmede aktif değil.</value></data>
+    <data name="EmployeeNotFound" xml:space="preserve"><value>Çalışan bulunamadı.</value></data>
+    <data name="AiServiceError" xml:space="preserve"><value>AI servisi hata döndü.</value></data>
+    <data name="AiResponseReadError" xml:space="preserve"><value>AI cevabı okunamadı.</value></data>
+    <data name="PerformanceReportError" xml:space="preserve"><value>Performans raporu oluşturulamadı.</value></data>
+    <data name="ReportsFetchError" xml:space="preserve"><value>Raporlar alınamadı.</value></data>
+    <data name="ReportNotFound" xml:space="preserve"><value>Rapor bulunamadı.</value></data>
+    <data name="SavedReportReadError" xml:space="preserve"><value>Kayıtlı rapor okunamadı.</value></data>
+    <data name="BusinessIdRequired" xml:space="preserve"><value>BusinessId zorunludur.</value></data>
+    <data name="BulkPerformanceError" xml:space="preserve"><value>Toplu performans skoru oluşturulamadı.</value></data>
+    
+    <!-- PROFILE  -->
+    <data name="EmailAlreadyInUse" xml:space="preserve"><value>Bu email adresi zaten kullanılıyor</value></data>
+    <data name="CurrentPasswordWrong" xml:space="preserve"><value>Mevcut şifre hatalı</value></data>
+    <data name="AccountDeleted" xml:space="preserve"><value>Hesap silindi.</value></data>
+    <data name="ProfileUpdateError" xml:space="preserve"><value>Profil güncellenirken hata oluştu</value></data>
+    
+    <!-- TASK  -->
+    <data name="PersonnelNotActiveInBusiness" xml:space="preserve"><value>Seçilen personel bu işletmede aktif değil.</value></data>
+    <data name="TaskCreateError" xml:space="preserve"><value>Görev oluşturulurken hata oluştu.</value></data>
+    <data name="TasksFetchError" xml:space="preserve"><value>Görevler listelenirken hata oluştu.</value></data>
+    <data name="MyTasksFetchError" xml:space="preserve"><value>Görevleriniz alınırken hata oluştu.</value></data>
+    <data name="TaskNotFound" xml:space="preserve"><value>Görev bulunamadı.</value></data>
+    <data name="TaskUpdated" xml:space="preserve"><value>Görev güncellendi.</value></data>
+    <data name="TaskUpdateError" xml:space="preserve"><value>Güncelleme hatası.</value></data>
+    <data name="NoPermissionDeleteTask" xml:space="preserve"><value>Görevi silme yetkiniz yok.</value></data>
+    <data name="TaskDeleted" xml:space="preserve"><value>Görev silindi.</value></data>
+    <data name="TaskDeleteError" xml:space="preserve"><value>Silme işleminde hata.</value></data>
+    <data name="TaskCreated" xml:space="preserve"><value>Görev oluşturuldu.</value></data>
+    <data name="StatusOverdue" xml:space="preserve"><value>Süresi Geçti</value></data>
+    <data name="StatusPending" xml:space="preserve"><value>Beklemede</value></data>
+    <data name="StatusCompleted" xml:space="preserve"><value>Tamamlandı</value></data>
+    <data name="UnknownUser" xml:space="preserve"><value>Bilinmiyor</value></data>
+</root>

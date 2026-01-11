@@ -8,7 +8,7 @@ namespace Personelim.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Bu controller'daki tüm işlemler için giriş yapmış olmak gerekir
+    [Authorize] 
     public class TaskController : ControllerBase
     {
         private readonly ITaskService _taskService;
@@ -17,14 +17,12 @@ namespace Personelim.Controllers
         {
             _taskService = taskService;
         }
-
-        // 1. Yeni Görev Oluşturma
-        // POST: api/task/create
+        
         [HttpPost("create")]
-        public async Task<IActionResult> CreateTask([FromBody] CreateTaskRequest request)
+        public async Task<IActionResult> CreateTask([FromBody] CreateTaskRequestDto requestDto)
         {
             var userId = GetCurrentUserId();
-            var response = await _taskService.CreateTaskAsync(userId, request);
+            var response = await _taskService.CreateTaskAsync(userId, requestDto);
 
             if (!response.Success)
             {
@@ -60,10 +58,10 @@ namespace Personelim.Controllers
         }
         
         [HttpPut("{taskId}/status")]
-        public async Task<IActionResult> UpdateStatus(Guid taskId, [FromBody] UpdateTaskStatusRequest request)
+        public async Task<IActionResult> UpdateStatus(Guid taskId, [FromBody] UpdateTaskStatusRequestDto requestDto)
         {
             var userId = GetCurrentUserId();
-            var response = await _taskService.UpdateTaskStatusAsync(userId, taskId, request);
+            var response = await _taskService.UpdateTaskStatusAsync(userId, taskId, requestDto);
 
             if (!response.Success)
             {

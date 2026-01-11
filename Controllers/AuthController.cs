@@ -19,9 +19,9 @@ namespace Personelim.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<ActionResult<ServiceResponse<AuthResponse>>> Register(RegisterRequest request)
+        public async Task<ActionResult<ServiceResponse<AuthResponseDto>>> Register(RegisterRequestDto requestDto)
         {
-            var result = await _authService.RegisterAsync(request);
+            var result = await _authService.RegisterAsync(requestDto);
             if (!result.Success)
             {
                 return BadRequest(result);
@@ -30,9 +30,9 @@ namespace Personelim.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<ServiceResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
+        public async Task<ActionResult<ServiceResponse<AuthResponseDto>>> Login([FromBody] LoginRequestDto requestDto)
         {
-            var result = await _authService.LoginAsync(request);
+            var result = await _authService.LoginAsync(requestDto);
             
             if (!result.Success)
             {
@@ -41,83 +41,13 @@ namespace Personelim.Controllers
             return Ok(result);
         }
 
-        [Authorize]
-        [HttpGet("profile")]
-        public async Task<ActionResult<ServiceResponse<UserProfileResponse>>> GetProfile()
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var result = await _authService.GetUserProfileAsync(userId);
-            
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-
-        [Authorize]
-        [HttpPut("profile")]
-        public async Task<ActionResult<ServiceResponse<UserProfileResponse>>> UpdateProfile(
-            [FromForm] UpdateUserProfileRequest request) 
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var result = await _authService.UpdateUserProfileAsync(userId, request);
-    
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-
-        [Authorize]
-        [HttpPost("change-password")]
-        public async Task<ActionResult<ServiceResponse<bool>>> ChangePassword(
-            [FromBody] ChangePasswordRequest request)
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var result = await _authService.ChangePasswordAsync(userId, request);
-            
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-
+        
         [Authorize]
         [HttpPost("logout")]
         public async Task<ActionResult<ServiceResponse<bool>>> Logout()
         {
             var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var result = await _authService.LogoutAsync(userId);
-            
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-
-        [Authorize]
-        [HttpDelete("delete-account")]
-        public async Task<ActionResult<ServiceResponse<bool>>> DeleteAccount()
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var result = await _authService.DeleteUserAsync(userId);
-            
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-
-        [HttpPost("forgot-password")]
-        public async Task<ActionResult<ServiceResponse<ForgotPasswordResponse>>> ForgotPassword(
-            [FromBody] ForgotPasswordRequest request)
-        {
-            var result = await _authService.ForgotPasswordAsync(request);
             
             if (!result.Success)
             {

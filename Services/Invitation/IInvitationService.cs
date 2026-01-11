@@ -5,9 +5,9 @@ namespace Personelim.Services.Invitation
 {
     public interface IInvitationService
     {
-        Task<ServiceResponse<InvitationResponse>> SendInvitationAsync(Guid userId, SendInvitationRequest request);
+        Task<ServiceResponse<InvitationResponseDto>> SendInvitationAsync(Guid userId, SendInvitationRequestDto requestDto);
         Task<ServiceResponse<string>> AcceptInvitationAsync(Guid userId, string invitationCode);
-        Task<ServiceResponse<List<InvitationResponse>>> GetUserInvitationsAsync(string email);
+        Task<ServiceResponse<List<InvitationResponseDto>>> GetUserInvitationsAsync(string email);
         Task<ServiceResponse<string>> CancelInvitationAsync(Guid userId, Guid invitationId);
     }
 }
