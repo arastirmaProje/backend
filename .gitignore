@@ -1,0 +1,56 @@
+## .NET / ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.swp
+*.sln.iml
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+## Publish profiles
+**/Properties/PublishProfiles/
+
+## ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+## Secrets & config overrides
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+*.pfx
+*.p12
+
+## OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## dotnet tools
+.dotnet-tools.json
