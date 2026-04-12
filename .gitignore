@@ -54,3 +54,6 @@ Desktop.ini
 
 ## dotnet tools
 .dotnet-tools.json
+
+## Claude Code
+.claude/
