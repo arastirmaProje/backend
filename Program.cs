@@ -65,6 +65,11 @@ builder.Services.Configure<SendGridSettings>(
 );
 
 // =======================================================
+// LOCALIZATION
+// =======================================================
+builder.Services.AddLocalization();
+
+// =======================================================
 // SERVICES
 // =======================================================
 builder.Services.AddControllers();
