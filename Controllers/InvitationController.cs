@@ -19,14 +19,14 @@ namespace Personelim.Controllers
         }
 
         [HttpPost("send")]
-        public async Task<IActionResult> SendInvitation([FromBody] SendInvitationRequest request)
+        public async Task<IActionResult> SendInvitation([FromBody] SendInvitationRequestDto requestDto)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
                 return Unauthorized("Token içinde User ID bulunamadı");
 
             var userId = Guid.Parse(userIdClaim.Value);
-            var result = await _invitationService.SendInvitationAsync(userId, request);
+            var result = await _invitationService.SendInvitationAsync(userId, requestDto);
 
             if (!result.Success)
                 return BadRequest(result);

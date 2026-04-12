@@ -99,7 +99,7 @@ namespace Personelim.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Hata: {ex.Message}");
+                Console.WriteLine($" Hata: {ex.Message}");
                 return StatusCode(500, new 
                 { 
                     success = false, 

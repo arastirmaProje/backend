@@ -123,3 +123,5 @@
 /Users/furkanozkan/RiderProjects/Personelim/Personelim/bin/Debug/net8.0/StarkbankEcdsa.dll
 /Users/furkanozkan/RiderProjects/Personelim/Personelim/bin/Debug/net8.0/Personelim.staticwebassets.runtime.json
 /Users/furkanozkan/RiderProjects/Personelim/Personelim/bin/Debug/net8.0/CloudinaryDotNet.dll
+/Users/furkanozkan/RiderProjects/Personelim/Personelim/obj/Debug/net8.0/Personelim.Resources.SharedResource.resources
+/Users/furkanozkan/RiderProjects/Personelim/Personelim/obj/Debug/net8.0/Personelim.csproj.GenerateResource.cache

@@ -40,10 +40,10 @@ namespace Personelim.Controllers
         }
 
         [HttpPut("{memberId}")]
-        public async Task<IActionResult> UpdateMember(Guid memberId, [FromBody] UpdateBusinessMemberRequest request)
+        public async Task<IActionResult> UpdateMember(Guid memberId, [FromBody] UpdateBusinessMemberRequestDto requestDto)
         {
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-            var result = await _memberService.UpdateMemberAsync(userId, memberId, request);
+            var result = await _memberService.UpdateMemberAsync(userId, memberId, requestDto);
 
             if (!result.Success) return BadRequest(result);
             return Ok(result);
@@ -59,19 +59,17 @@ namespace Personelim.Controllers
             return Ok(result);
         }
 
-        // DOSYA (DOKÜMAN) YÖNETİMİ ENDPOINTLERİ
-
         [HttpPost("{memberId}/documents")]
-        public async Task<IActionResult> UploadDocument(Guid memberId, [FromForm] UploadDocumentRequest request)
+        public async Task<IActionResult> UploadDocument(Guid memberId, [FromForm] UploadDocumentRequestDto requestDto)
         {
-            if (request.File == null || request.File.Length == 0)
+            if (requestDto.File == null || requestDto.File.Length == 0)
             {
                 return BadRequest(ServiceResponse<object>.ErrorResult("Lütfen bir dosya seçiniz."));
             }
 
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
 
-            var result = await _memberService.UploadDocumentAsync(userId, memberId, request);
+            var result = await _memberService.UploadDocumentAsync(userId, memberId, requestDto);
 
             if (!result.Success)
                 return BadRequest(result);
@@ -80,10 +78,9 @@ namespace Personelim.Controllers
         }
 
         [HttpPut("documents/{documentId}")]
-        public async Task<IActionResult> UpdateDocument(Guid documentId, [FromForm] UpdateDocumentRequest request)
+        public async Task<IActionResult> UpdateDocument(Guid documentId, [FromForm] UpdateDocumentRequestDto requestDto)
         {
-            // Validate: En azından bir şey gönderilmeli (İsim ya da Dosya)
-            if (string.IsNullOrWhiteSpace(request.DocumentType) && request.File == null)
+            if (string.IsNullOrWhiteSpace(requestDto.DocumentType) && requestDto.File == null)
             {
                 return BadRequest(
                     ServiceResponse<object>.ErrorResult(
@@ -92,7 +89,7 @@ namespace Personelim.Controllers
 
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
 
-            var result = await _memberService.UpdateDocumentAsync(userId, documentId, request);
+            var result = await _memberService.UpdateDocumentAsync(userId, documentId, requestDto);
 
             if (!result.Success)
                 return BadRequest(result);
@@ -116,27 +113,19 @@ namespace Personelim.Controllers
         [HttpGet("documents/{documentId}/download")]
         public async Task<IActionResult> GetDocument(Guid documentId)
         {
-            // Token'dan User ID al
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null) return Unauthorized();
             var currentUserId = Guid.Parse(userIdClaim.Value);
-
-            // Tüm mantığı (Yetki, Dosya Bulma, Okuma) servise devret
+            
             var result = await _memberService.GetDocumentFileAsync(currentUserId, documentId);
 
             if (!result.Success)
             {
-                // Eğer belge bulunamadıysa NotFound, yetki yoksa Unauthorized dönebiliriz
-                // Burada basitçe BadRequest dönüyoruz, mesaj içinde sebebi yazar.
                 return BadRequest(result.Message);
             }
 
             var fileData = result.Data;
-
-            // Dosyayı tarayıcıya stream olarak gönder
-            // 1. Parametre: Byte Dizisi
-            // 2. Parametre: Content Type (MIME Type)
-            // 3. Parametre: İndirilecek dosya adı
+            
             return File(fileData.FileBytes, fileData.ContentType, fileData.FileName);
         }
     }

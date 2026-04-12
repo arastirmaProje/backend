@@ -19,27 +19,26 @@ namespace Personelim.Controllers
         
         [Authorize]
         [HttpPost("create-business")] 
-        public async Task<IActionResult> CreateBusiness([FromBody] CreateBusinessRequest request)
+        public async Task<IActionResult> CreateBusiness([FromBody] CreateBusinessRequestDto requestDto)
         {
             var userId = GetUserIdFromToken();
             if (userId == Guid.Empty) return Unauthorized(new { message = "Kullanıcı kimliği doğrulanamadı." });
             
-            var result = await _businessService.CreateBusinessAsync(request, userId);
+            var result = await _businessService.CreateBusinessAsync(requestDto, userId);
             
             if (!result.Success) return BadRequest(result);
 
             return CreatedAtAction(nameof(GetBusinessById), new { businessId = result.Data.Id }, result);
         }
         
-        // DOĞRULAMA
         [Authorize]
         [HttpPost("verify")]
-        public async Task<IActionResult> VerifyBusiness([FromBody] VerifyBusinessRequest request)
+        public async Task<IActionResult> VerifyBusiness([FromBody] VerifyBusinessRequestDto requestDto)
         {
             var userId = GetUserIdFromToken(); 
             if (userId == Guid.Empty) return Unauthorized();
             
-            var result = await _businessService.VerifyBusinessAsync(userId, request);
+            var result = await _businessService.VerifyBusinessAsync(userId, requestDto);
         
             if (result.Success) return Ok(result);
             return BadRequest(result);
@@ -63,12 +62,12 @@ namespace Personelim.Controllers
 
         [Authorize]
         [HttpPut("{businessId}")] 
-        public async Task<IActionResult> UpdateBusiness(Guid businessId, [FromForm] UpdateBusinessRequest request)
+        public async Task<IActionResult> UpdateBusiness(Guid businessId, [FromForm] UpdateBusinessRequestDto requestDto)
         {
             var userId = GetUserIdFromToken();
             if (userId == Guid.Empty) return Unauthorized();
             
-            var result = await _businessService.UpdateBusinessAsync(userId, businessId, request);
+            var result = await _businessService.UpdateBusinessAsync(userId, businessId, requestDto);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
@@ -86,10 +85,10 @@ namespace Personelim.Controllers
         
         [Authorize]
         [HttpPost("{businessId}/documents")]
-        public async Task<IActionResult> UploadBusinessDocument(Guid businessId, [FromForm] UploadBusinessDocumentRequest request)
+        public async Task<IActionResult> UploadBusinessDocument(Guid businessId, [FromForm] UploadBusinessDocumentRequestDto requestDto)
         {
             var userId = GetUserIdFromToken();
-            var result = await _businessService.UploadBusinessDocumentAsync(userId, businessId, request);
+            var result = await _businessService.UploadBusinessDocumentAsync(userId, businessId, requestDto);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 

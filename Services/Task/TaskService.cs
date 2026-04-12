@@ -1,76 +1,65 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Personelim.Data;
 using Personelim.DTOs.Task;
 using Personelim.Helpers;
 using Personelim.Models;
-using Personelim.Models.Enums; 
+using Personelim.Models.Enums;
+using Personelim.Resources;
 
 namespace Personelim.Services.Task
 {
     public class TaskService : ITaskService
     {
         private readonly AppDbContext _context;
+        private readonly IStringLocalizer<SharedResource> _localizer;
 
-        public TaskService(AppDbContext context)
+        public TaskService(AppDbContext context, IStringLocalizer<SharedResource> localizer)
         {
             _context = context;
+            _localizer = localizer;
         }
 
-      
-        public async Task<ServiceResponse<TaskResponse>> CreateTaskAsync(Guid currentUserId, CreateTaskRequest request)
+        public async Task<ServiceResponse<TaskResponseDto>> CreateTaskAsync(Guid currentUserId, CreateTaskRequestDto requestDto)
         {
             try
             {
-               
                 var isEmployee = await _context.BusinessMembers.AnyAsync(bm =>
-                    bm.UserId == request.AssignedToUserId &&
-                    bm.BusinessId == request.BusinessId &&
+                    bm.UserId == requestDto.AssignedToUserId &&
+                    bm.BusinessId == requestDto.BusinessId &&
                     bm.IsActive);
-
-                if (!isEmployee)
-                {
-                    return ServiceResponse<TaskResponse>.ErrorResult("Seçilen personel bu işletmede aktif değil.");
-                }
                 
-                if (request.EndDate < request.StartDate)
-                {
-                    return ServiceResponse<TaskResponse>.ErrorResult("Bitiş tarihi başlangıç tarihinden önce olamaz.");
-                }
+                if (!isEmployee)
+                    return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["PersonnelNotActiveInBusiness"]);
+                
+                if (requestDto.EndDate < requestDto.StartDate)
+                    return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["StartDateAfterEndDate"]);
 
-              
-               
                 var newTask = new TaskItem
                 {
-                    BusinessId = request.BusinessId,
+                    BusinessId = requestDto.BusinessId,
                     AssignedByUserId = currentUserId,
-                    AssignedToUserId = request.AssignedToUserId,
-                    Title = request.Title,
-                    Description = request.Description,
-                    
-                    Status = request.EndDate < DateTime.UtcNow ? "Süresi Geçti" : "Beklemede",
-                    
-                    StartDate = request.StartDate,
-                    EndDate = request.EndDate,
+                    AssignedToUserId = requestDto.AssignedToUserId,
+                    Title = requestDto.Title,
+                    Description = requestDto.Description,
+                    Status = requestDto.EndDate < DateTime.UtcNow ? _localizer["StatusOverdue"] : _localizer["StatusPending"],
+                    StartDate = requestDto.StartDate,
+                    EndDate = requestDto.EndDate,
                     CreatedAt = DateTime.UtcNow
                 };
 
                 await _context.TaskItems.AddAsync(newTask);
                 await _context.SaveChangesAsync();
-
                 return await GetTaskByIdInternal(newTask.Id);
-            }
-            catch (DbUpdateException ex)
-            {
-                var detail = ex.InnerException?.Message ?? ex.Message;
-                return ServiceResponse<TaskResponse>.ErrorResult("Görev oluşturulurken hata oluştu.", detail);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<TaskResponse>.ErrorResult("Görev oluşturulurken hata oluştu.", ex.Message);
+                var detail = ex is DbUpdateException dbEx ? (dbEx.InnerException?.Message ?? dbEx.Message) : ex.Message;
+                return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["TaskCreateError"], detail);
             }
         }
-        
-        public async Task<ServiceResponse<List<TaskResponse>>> GetTasksByBusinessAsync(Guid currentUserId, Guid businessId)
+
+        public async Task<ServiceResponse<List<TaskResponseDto>>> GetTasksByBusinessAsync(Guid currentUserId, Guid businessId)
         {
             try
             {
@@ -79,20 +68,18 @@ namespace Personelim.Services.Task
                     .Include(t => t.AssignedByUser)
                     .Where(t => t.BusinessId == businessId)
                     .OrderByDescending(t => t.CreatedAt)
-                    .ToListAsync(); 
+                    .ToListAsync();
 
-              
-                var responseList = tasks.Select(t => MapToResponse(t)).ToList();
-
-                return ServiceResponse<List<TaskResponse>>.SuccessResult(responseList);
+                var responseList = tasks.Select(MapToResponse).ToList();
+                return ServiceResponse<List<TaskResponseDto>>.SuccessResult(responseList);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<List<TaskResponse>>.ErrorResult("Görevler listelenirken hata oluştu.", ex.Message);
+                return ServiceResponse<List<TaskResponseDto>>.ErrorResult(_localizer["TasksFetchError"], ex.Message);
             }
         }
-        
-        public async Task<ServiceResponse<List<TaskResponse>>> GetMyTasksAsync(Guid currentUserId)
+
+        public async Task<ServiceResponse<List<TaskResponseDto>>> GetMyTasksAsync(Guid currentUserId)
         {
             try
             {
@@ -101,20 +88,18 @@ namespace Personelim.Services.Task
                     .Include(t => t.AssignedByUser)
                     .Where(t => t.AssignedToUserId == currentUserId)
                     .OrderBy(t => t.EndDate)
-                    .ToListAsync(); 
+                    .ToListAsync();
 
-              
-                var responseList = tasks.Select(t => MapToResponse(t)).ToList();
-
-                return ServiceResponse<List<TaskResponse>>.SuccessResult(responseList);
+                var responseList = tasks.Select(MapToResponse).ToList();
+                return ServiceResponse<List<TaskResponseDto>>.SuccessResult(responseList);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<List<TaskResponse>>.ErrorResult("Görevleriniz alınırken hata oluştu.", ex.Message);
+                return ServiceResponse<List<TaskResponseDto>>.ErrorResult(_localizer["MyTasksFetchError"], ex.Message);
             }
         }
-        
-        public async Task<ServiceResponse<TaskResponse>> UpdateTaskStatusAsync(Guid currentUserId, Guid taskId, UpdateTaskStatusRequest request)
+
+        public async Task<ServiceResponse<TaskResponseDto>> UpdateTaskStatusAsync(Guid currentUserId, Guid taskId, UpdateTaskStatusRequestDto requestDto)
         {
             try
             {
@@ -122,103 +107,89 @@ namespace Personelim.Services.Task
                     .Include(t => t.AssignedToUser)
                     .Include(t => t.AssignedByUser)
                     .FirstOrDefaultAsync(t => t.Id == taskId);
-
-                if (task == null) return ServiceResponse<TaskResponse>.ErrorResult("Görev bulunamadı.");
                 
-                task.Status = request.Status;
-        
-                
-                task.Difficulty = request.Difficulty; 
-                 task.Difficulty = request.Difficulty?.ToLowerInvariant();
-                if (!string.IsNullOrEmpty(request.Thoughts))
-                {
-                    task.Thoughts = request.Thoughts;
-                }
+                if (task == null) return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["TaskNotFound"]);
 
+                task.Status = requestDto.Status;
+                task.Difficulty = requestDto.Difficulty?.ToLowerInvariant();
+                
+                if (!string.IsNullOrEmpty(requestDto.Thoughts)) task.Thoughts = requestDto.Thoughts;
+                
                 task.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-        
-                return ServiceResponse<TaskResponse>.SuccessResult(MapToResponse(task), "Görev güncellendi.");
+
+                return ServiceResponse<TaskResponseDto>.SuccessResult(MapToResponse(task), _localizer["TaskUpdated"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<TaskResponse>.ErrorResult("Güncelleme hatası.", ex.Message);
+                return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["TaskUpdateError"], ex.Message);
             }
         }
 
-       
         public async Task<ServiceResponse<bool>> DeleteTaskAsync(Guid currentUserId, Guid taskId)
         {
             try
             {
                 var task = await _context.TaskItems.FindAsync(taskId);
-                if (task == null) return ServiceResponse<bool>.ErrorResult("Görev bulunamadı.");
+                if (task == null) return ServiceResponse<bool>.ErrorResult(_localizer["TaskNotFound"]);
 
                 var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == currentUserId &&
                     bm.BusinessId == task.BusinessId &&
                     bm.Role == UserRole.Owner &&
                     bm.IsActive);
-
-                if (!isOwner) return ServiceResponse<bool>.ErrorResult("Görevi silme yetkiniz yok.");
+                
+                if (!isOwner) return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionDeleteTask"]);
 
                 _context.TaskItems.Remove(task);
                 await _context.SaveChangesAsync();
-                return ServiceResponse<bool>.SuccessResult(true, "Görev silindi.");
+                return ServiceResponse<bool>.SuccessResult(true, _localizer["TaskDeleted"]);
             }
             catch (Exception ex)
             {
-                return ServiceResponse<bool>.ErrorResult("Silme işleminde hata.", ex.Message);
+                return ServiceResponse<bool>.ErrorResult(_localizer["TaskDeleteError"], ex.Message);
             }
         }
 
-        private static TaskResponse MapToResponse(TaskItem t)
+        private TaskResponseDto MapToResponse(TaskItem t)
         {
             bool isTimeUp = t.EndDate < DateTime.UtcNow;
-
-            string currentStatus = t.Status?.ToString() ?? "Beklemede";
-
-            bool isCompleted =
-                currentStatus.Equals("Tamamlandı", StringComparison.OrdinalIgnoreCase) ||
-                currentStatus.Equals("Completed", StringComparison.OrdinalIgnoreCase);
+            string currentStatus = t.Status ?? _localizer["StatusPending"];
+            
+            bool isCompleted = currentStatus.Equals(_localizer["StatusCompleted"], StringComparison.OrdinalIgnoreCase) ||
+                               currentStatus.Equals("Completed", StringComparison.OrdinalIgnoreCase);
 
             if (isTimeUp && !isCompleted)
             {
-                currentStatus = "Süresi Geçti";
+                currentStatus = _localizer["StatusOverdue"];
             }
 
-            return new TaskResponse
+            return new TaskResponseDto
             {
                 Id = t.Id,
                 Title = t.Title,
                 Description = t.Description,
-                AssignedToName = t.AssignedToUser != null
-                    ? $"{t.AssignedToUser.FirstName} {t.AssignedToUser.LastName}"
-                    : "Bilinmiyor",
-                AssignedByName = t.AssignedByUser != null
-                    ? $"{t.AssignedByUser.FirstName} {t.AssignedByUser.LastName}"
-                    : "Bilinmiyor",
+                AssignedToName = t.AssignedToUser != null ? $"{t.AssignedToUser.FirstName} {t.AssignedToUser.LastName}" : _localizer["UnknownUser"],
+                AssignedByName = t.AssignedByUser != null ? $"{t.AssignedByUser.FirstName} {t.AssignedByUser.LastName}" : _localizer["UnknownUser"],
                 StartDate = t.StartDate,
                 EndDate = t.EndDate,
                 Status = currentStatus,
-                Difficulty = t.Difficulty, 
+                Difficulty = t.Difficulty,
                 Thoughts = t.Thoughts,
                 IsOverdue = isTimeUp,
                 CreatedAt = t.CreatedAt
             };
         }
 
-
-        private async Task<ServiceResponse<TaskResponse>> GetTaskByIdInternal(Guid taskId)
+        private async Task<ServiceResponse<TaskResponseDto>> GetTaskByIdInternal(Guid taskId)
         {
             var task = await _context.TaskItems
                    .Include(t => t.AssignedToUser)
                    .Include(t => t.AssignedByUser)
                    .FirstOrDefaultAsync(t => t.Id == taskId);
-
-            if (task == null) return ServiceResponse<TaskResponse>.ErrorResult("Hata oluştu");
-
-            return ServiceResponse<TaskResponse>.SuccessResult(MapToResponse(task), "Görev oluşturuldu.");
+            
+            if (task == null) return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["GeneralError"]);
+            return ServiceResponse<TaskResponseDto>.SuccessResult(MapToResponse(task), _localizer["TaskCreated"]);
         }
     }
 }

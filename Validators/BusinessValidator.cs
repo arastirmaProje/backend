@@ -7,7 +7,7 @@ namespace Personelim.Validators
 {
     public interface IBusinessValidator
     {
-        Task<ServiceResponse<bool>> ValidateCreateBusinessAsync(CreateBusinessRequest request);
+        Task<ServiceResponse<bool>> ValidateCreateBusinessAsync(CreateBusinessRequestDto requestDto);
     }
 
     public class BusinessValidator : IBusinessValidator
@@ -28,16 +28,16 @@ namespace Personelim.Validators
             _context = context;
         }
 
-        public async Task<ServiceResponse<bool>> ValidateCreateBusinessAsync(CreateBusinessRequest request)
+        public async Task<ServiceResponse<bool>> ValidateCreateBusinessAsync(CreateBusinessRequestDto requestDto)
         {
-            if (request == null)
+            if (requestDto == null)
                 return ServiceResponse<bool>.ErrorResult("Geçersiz istek");
 
             // --- İşletme adı ---
-            if (string.IsNullOrWhiteSpace(request.BusinessName))
+            if (string.IsNullOrWhiteSpace(requestDto.BusinessName))
                 return ServiceResponse<bool>.ErrorResult("İşletme adı zorunludur");
 
-            var name = request.BusinessName.Trim();
+            var name = requestDto.BusinessName.Trim();
             if (name.Length < 2) return ServiceResponse<bool>.ErrorResult("İşletme adı en az 2 karakter olmalıdır");
             if (name.Length > 200) return ServiceResponse<bool>.ErrorResult("İşletme adı en fazla 200 karakter olabilir");
 
@@ -49,18 +49,18 @@ namespace Personelim.Validators
                 return ServiceResponse<bool>.ErrorResult("Bu isimde bir işletme zaten kayıtlı");
 
             // --- Adres ---
-            if (string.IsNullOrWhiteSpace(request.Address))
+            if (string.IsNullOrWhiteSpace(requestDto.Address))
                 return ServiceResponse<bool>.ErrorResult("Adres boş bırakılamaz");
 
-            var address = request.Address.Trim();
+            var address = requestDto.Address.Trim();
             if (address.Length < 10) return ServiceResponse<bool>.ErrorResult("Adres en az 10 karakter olmalıdır");
             if (address.Length > 500) return ServiceResponse<bool>.ErrorResult("Adres en fazla 500 karakter olabilir");
 
             // --- Telefon ---
-            if (string.IsNullOrWhiteSpace(request.PhoneNumber))
+            if (string.IsNullOrWhiteSpace(requestDto.PhoneNumber))
                 return ServiceResponse<bool>.ErrorResult("Telefon numarası boş bırakılamaz");
 
-            var cleanPhoneNumber = new string(request.PhoneNumber.Where(char.IsDigit).ToArray());
+            var cleanPhoneNumber = new string(requestDto.PhoneNumber.Where(char.IsDigit).ToArray());
 
             if (cleanPhoneNumber.Length != 10)
                 return ServiceResponse<bool>.ErrorResult("Telefon numarası 10 haneli olmalıdır");
@@ -88,11 +88,11 @@ namespace Personelim.Validators
 
             // --- Province / District kontrolü ---
             // Buradaki hata genelde tip uyuşmazlığından kaynaklanır. FindAsync kullanarak tipi EF'e bırakıyoruz.
-            var province = await _context.Provinces.FindAsync(request.ProvinceId);
+            var province = await _context.Provinces.FindAsync(requestDto.ProvinceId);
             if (province == null)
                 return ServiceResponse<bool>.ErrorResult("Geçersiz şehir seçimi");
 
-            var district = await _context.Districts.FindAsync(request.DistrictId);
+            var district = await _context.Districts.FindAsync(requestDto.DistrictId);
             if (district == null)
                 return ServiceResponse<bool>.ErrorResult("Geçersiz ilçe seçimi");
 
