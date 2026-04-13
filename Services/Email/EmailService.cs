@@ -1,30 +1,29 @@
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MimeKit;
 using Personelim.Resources;
-using SendGrid;
-using SendGrid.Helpers.Mail;
 
 namespace Personelim.Services.Email;
 
 public class EmailService : IEmailService
 {
-    private readonly SendGridSettings _settings;
+    private readonly SmtpSettings _settings;
     private readonly ILogger<EmailService> _logger;
-    private readonly SendGridClient _client;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
     public EmailService(
-        IOptions<SendGridSettings> settings,
+        IOptions<SmtpSettings> settings,
         ILogger<EmailService> logger,
         IStringLocalizer<SharedResource> localizer)
     {
         _settings = settings.Value;
         _logger = logger;
         _localizer = localizer;
-        _client = new SendGridClient(_settings.ApiKey);
     }
-    
+
     public async Task<bool> SendBusinessVerificationCodeAsync(
         string email, string userName, string businessName, string code)
     {
@@ -71,44 +70,39 @@ public class EmailService : IEmailService
     public async Task<bool> SendInvitationEmailAsync(
         string email, string invitationCode, string businessName, string inviterName, string message)
     {
-        var body = GetBaseHtmlTemplate(
-            _localizer["BusinessInvitationTitle"],
-            $"<p>{string.Format(_localizer["BusinessInvitingYou"], businessName)}</p>"
-        );
+        var content = $@"
+            <p>{string.Format(_localizer["BusinessInvitingYou"], businessName)}</p>
+            {(string.IsNullOrWhiteSpace(message) ? "" : $"<p><em>{message}</em></p>")}
+            <p>{_localizer["EmailHello"]}, <strong>{inviterName}</strong> sizi davet etti.</p>
+            <p>Davet kodunuz:</p>
+            <h2 style='letter-spacing:4px'>{invitationCode}</h2>";
+
+        var body = GetBaseHtmlTemplate(_localizer["BusinessInvitationTitle"], content);
         return await SendAsync(email, _localizer["BusinessInvitationTitle"], body);
     }
-    
+
     private async Task<bool> SendAsync(string to, string subject, string html)
     {
         try
         {
-            var from = new EmailAddress(_settings.FromEmail, _settings.FromName);
-            var toEmail = new EmailAddress(to);
-            var msg = MailHelper.CreateSingleEmail(
-                from,
-                toEmail,
-                subject,
-                plainTextContent: null,
-                htmlContent: html
-            );
-            var response = await _client.SendEmailAsync(msg);
-        
-            if ((int)response.StatusCode >= 400)
-            {
-                var responseBody = await response.Body.ReadAsStringAsync(); 
-                _logger.LogError(
-                    "SendGrid Error. Status: {Status}. Body: {Body}",
-                    response.StatusCode,
-                    responseBody); 
-                
-                return false;
-            }
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
+            message.To.Add(MailboxAddress.Parse(to));
+            message.Subject = subject;
+            message.Body = new TextPart("html") { Text = html };
+
+            using var client = new SmtpClient();
+            await client.ConnectAsync(_settings.Host, _settings.Port, SecureSocketOptions.StartTls);
+            await client.AuthenticateAsync(_settings.Username, _settings.Password);
+            await client.SendAsync(message);
+            await client.DisconnectAsync(true);
+
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SendGrid email error occurred in SendAsync.");
-            throw; 
+            _logger.LogError(ex, "SMTP email error. To: {To}, Subject: {Subject}", to, subject);
+            return false;
         }
     }
 

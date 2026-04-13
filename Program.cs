@@ -58,11 +58,17 @@ var signingKey = new SymmetricSecurityKey(
 );
 
 // =======================================================
-// EMAIL CONFIG  🔥 KRİTİK
+// EMAIL CONFIG
 // =======================================================
-builder.Services.Configure<SendGridSettings>(
-    builder.Configuration.GetSection("SendGrid")
-);
+builder.Services.Configure<SmtpSettings>(options =>
+{
+    options.Host     = Environment.GetEnvironmentVariable("SMTP_HOST")     ?? builder.Configuration["Smtp:Host"]     ?? "smtp.gmail.com";
+    options.Port     = int.TryParse(Environment.GetEnvironmentVariable("SMTP_PORT") ?? builder.Configuration["Smtp:Port"], out var port) ? port : 587;
+    options.Username = Environment.GetEnvironmentVariable("SMTP_USERNAME") ?? builder.Configuration["Smtp:Username"] ?? throw new Exception("SMTP_USERNAME missing");
+    options.Password = Environment.GetEnvironmentVariable("SMTP_PASSWORD") ?? builder.Configuration["Smtp:Password"] ?? throw new Exception("SMTP_PASSWORD missing");
+    options.FromEmail= Environment.GetEnvironmentVariable("SMTP_FROM_EMAIL")  ?? builder.Configuration["Smtp:FromEmail"]  ?? throw new Exception("SMTP_FROM_EMAIL missing");
+    options.FromName = Environment.GetEnvironmentVariable("SMTP_FROM_NAME")   ?? builder.Configuration["Smtp:FromName"]   ?? "Personelim App";
+});
 
 // =======================================================
 // LOCALIZATION
