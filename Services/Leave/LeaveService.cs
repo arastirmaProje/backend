@@ -148,7 +148,7 @@ namespace Personelim.Services.Leave
                 StartDate = leave.StartDate,
                 EndDate = leave.EndDate,
                 DayCount = leave.DayCount,
-                Status = leave.Status.ToString(),
+                Status = leave.Status.ToString(), 
                 RejectionReason = leave.RejectionReason,
                 CreatedAt = leave.CreatedAt
             };
