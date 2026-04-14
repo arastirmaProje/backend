@@ -33,7 +33,13 @@ namespace Personelim.Services.Invitation
             try
             {
                 var business = await _context.Businesses.FindAsync(requestDto.BusinessId);
+                if (business == null)
+                    return ServiceResponse<InvitationResponseDto>.ErrorResult(_localizer["BusinessNotFound"]);
+
                 var inviter = await _context.Users.FindAsync(userId);
+                if (inviter == null)
+                    return ServiceResponse<InvitationResponseDto>.ErrorResult(_localizer["UserNotFound"]);
+
                 var targetUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == requestDto.Email.ToLower());
                 
                 bool isNewUser = false;

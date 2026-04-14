@@ -16,6 +16,7 @@ using Personelim.Services.Task;
 using System.Text;
 using Microsoft.Extensions.FileProviders;
 using Personelim.Services.Shift;
+using Personelim.Services.Admin;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,6 +92,8 @@ builder.Services.AddScoped<ILeaveService, LeaveService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IShiftService, ShiftService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<Personelim.Services.Performance.IPerformanceService, Personelim.Services.Performance.PerformanceService>();
 
 builder.Services.AddHttpClient("AiPerformance", c =>

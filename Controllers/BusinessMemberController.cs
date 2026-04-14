@@ -22,7 +22,8 @@ namespace Personelim.Controllers
         [HttpGet("business/{businessId}")]
         public async Task<IActionResult> GetMembersByBusiness(Guid businessId)
         {
-            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
             var result = await _memberService.GetMembersByBusinessIdAsync(userId, businessId);
 
             if (!result.Success) return BadRequest(result);
@@ -32,7 +33,8 @@ namespace Personelim.Controllers
         [HttpGet("{memberId}")]
         public async Task<IActionResult> GetMemberById(Guid memberId)
         {
-            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
             var result = await _memberService.GetMemberByIdAsync(userId, memberId);
 
             if (!result.Success) return BadRequest(result);
@@ -42,7 +44,8 @@ namespace Personelim.Controllers
         [HttpPut("{memberId}")]
         public async Task<IActionResult> UpdateMember(Guid memberId, [FromBody] UpdateBusinessMemberRequestDto requestDto)
         {
-            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
             var result = await _memberService.UpdateMemberAsync(userId, memberId, requestDto);
 
             if (!result.Success) return BadRequest(result);
@@ -52,7 +55,8 @@ namespace Personelim.Controllers
         [HttpDelete("{memberId}")]
         public async Task<IActionResult> RemoveMember(Guid memberId)
         {
-            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
             var result = await _memberService.RemoveMemberAsync(userId, memberId);
 
             if (!result.Success) return BadRequest(result);
@@ -67,7 +71,8 @@ namespace Personelim.Controllers
                 return BadRequest(ServiceResponse<object>.ErrorResult("Lütfen bir dosya seçiniz."));
             }
 
-            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _memberService.UploadDocumentAsync(userId, memberId, requestDto);
 
@@ -87,7 +92,8 @@ namespace Personelim.Controllers
                         "Güncellenecek bir bilgi (Belge Tipi veya Dosya) göndermelisiniz."));
             }
 
-            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _memberService.UpdateDocumentAsync(userId, documentId, requestDto);
 
@@ -100,7 +106,8 @@ namespace Personelim.Controllers
         [HttpDelete("documents/{documentId}")]
         public async Task<IActionResult> DeleteDocument(Guid documentId)
         {
-            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _memberService.DeleteDocumentAsync(userId, documentId);
 
@@ -113,10 +120,9 @@ namespace Personelim.Controllers
         [HttpGet("documents/{documentId}/download")]
         public async Task<IActionResult> GetDocument(Guid documentId)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null) return Unauthorized();
-            var currentUserId = Guid.Parse(userIdClaim.Value);
-            
+            var currentUserId = GetUserId();
+            if (currentUserId == Guid.Empty) return Unauthorized();
+
             var result = await _memberService.GetDocumentFileAsync(currentUserId, documentId);
 
             if (!result.Success)
@@ -125,8 +131,14 @@ namespace Personelim.Controllers
             }
 
             var fileData = result.Data;
-            
+
             return File(fileData.FileBytes, fileData.ContentType, fileData.FileName);
+        }
+
+        private Guid GetUserId()
+        {
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(claim?.Value, out var id) ? id : Guid.Empty;
         }
     }
 }

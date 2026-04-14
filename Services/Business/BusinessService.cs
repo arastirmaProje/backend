@@ -138,8 +138,11 @@ namespace Personelim.Services.Business
                 .Include(b => b.SubBusinesses)
                 .Include(b => b.Members)
                 .FirstOrDefaultAsync(b => b.Id == businessId);
-            
-            var response = MapToBusinessResponse(updatedBusiness!, userId);
+
+            if (updatedBusiness == null)
+                return ServiceResponse<BusinessResponseDto>.ErrorResult(_localizer["BusinessNotFound"]);
+
+            var response = MapToBusinessResponse(updatedBusiness, userId);
             return ServiceResponse<BusinessResponseDto>.SuccessResult(response, _localizer["BusinessUpdated"]);
         }
         
@@ -226,8 +229,11 @@ namespace Personelim.Services.Business
                      .Include(b => b.Members)
                      .Include(b => b.SubBusinesses)
                      .FirstOrDefaultAsync(b => b.Id == mainBusiness.Id);
-                
-                var response = MapToBusinessResponse(createdBusiness!, userId);
+
+                if (createdBusiness == null)
+                    return ServiceResponse<BusinessResponseDto>.ErrorResult(_localizer["BusinessNotFound"]);
+
+                var response = MapToBusinessResponse(createdBusiness, userId);
                 return ServiceResponse<BusinessResponseDto>.SuccessResult(response, _localizer["BusinessCreatedVerificationSent"]);
             }
             catch (Exception ex)
