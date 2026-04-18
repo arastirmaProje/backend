@@ -6,6 +6,8 @@ using Personelim.Helpers;
 using Personelim.Models;
 using Personelim.Models.Enums;
 using Personelim.Resources;
+using Personelim.Helpers;
+using Personelim.Services.Slack;
 
 namespace Personelim.Services.Task
 {
@@ -13,11 +15,13 @@ namespace Personelim.Services.Task
     {
         private readonly AppDbContext _context;
         private readonly IStringLocalizer<SharedResource> _localizer;
+        private readonly ISlackService _slackService;
 
-        public TaskService(AppDbContext context, IStringLocalizer<SharedResource> localizer)
+        public TaskService(AppDbContext context, IStringLocalizer<SharedResource> localizer, ISlackService slackService)
         {
             _context = context;
             _localizer = localizer;
+            _slackService = slackService;
         }
 
         public async Task<ServiceResponse<TaskResponseDto>> CreateTaskAsync(Guid currentUserId, CreateTaskRequestDto requestDto)
@@ -50,7 +54,33 @@ namespace Personelim.Services.Task
 
                 await _context.TaskItems.AddAsync(newTask);
                 await _context.SaveChangesAsync();
-                return await GetTaskByIdInternal(newTask.Id);
+
+                var result = await GetTaskByIdInternal(newTask.Id);
+                if (result.Success && result.Data != null)
+                {
+                    await _slackService.SendAsync(requestDto.BusinessId, SlackEventTypes.TaskCreated, new
+                    {
+                        blocks = new object[]
+                        {
+                            new { type = "header", text = new { type = "plain_text", text = "📋 Yeni Görev Oluşturuldu", emoji = true } },
+                            new { type = "section", fields = new[] {
+                                new { type = "mrkdwn", text = $"*Başlık:*\n{result.Data.Title}" },
+                                new { type = "mrkdwn", text = $"*Atayan:*\n{result.Data.AssignedByName}" }
+                            }},
+                            new { type = "section", fields = new[] {
+                                new { type = "mrkdwn", text = $"*Atanan:*\n{result.Data.AssignedToName}" },
+                                new { type = "mrkdwn", text = $"*Durum:*\nBeklemede" }
+                            }},
+                            new { type = "section", fields = new[] {
+                                new { type = "mrkdwn", text = $"*Başlangıç:*\n{result.Data.StartDate:dd.MM.yyyy}" },
+                                new { type = "mrkdwn", text = $"*Bitiş:*\n{result.Data.EndDate:dd.MM.yyyy}" }
+                            }},
+                            new { type = "section", text = new { type = "mrkdwn", text = $"*Açıklama:*\n{result.Data.Description}" } },
+                            new { type = "divider" }
+                        }
+                    });
+                }
+                return result;
             }
             catch (Exception ex)
             {

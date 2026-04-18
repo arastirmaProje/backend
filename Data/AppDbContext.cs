@@ -24,6 +24,7 @@ namespace Personelim.Data
         
         public DbSet<BusinessDocument> BusinessDocuments { get; set; }
         public DbSet<Department> Departments { get; set; }
+        public DbSet<SlackWebhook> SlackWebhooks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -69,6 +70,19 @@ namespace Personelim.Data
                     .IsRequired(false);
             });
             
+            modelBuilder.Entity<SlackWebhook>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.WebhookUrl).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.EventType).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Label).HasMaxLength(100);
+
+                entity.HasOne(e => e.Business)
+                    .WithMany()
+                    .HasForeignKey(e => e.BusinessId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
             modelBuilder.Entity<Department>(entity =>
             {
                 entity.HasKey(e => e.Id);
