@@ -4,6 +4,7 @@ using Personelim.Data;
 using Personelim.DTOs.Leave;
 using Personelim.Helpers;
 using Personelim.Models;
+using Personelim.Helpers;
 using Personelim.Models.Enums;
 using Personelim.Resources;
 
@@ -69,10 +70,12 @@ namespace Personelim.Services.Leave
 
         public async Task<ServiceResponse<List<LeaveResponseDto>>> GetBusinessLeavesAsync(Guid userId, Guid businessId)
         {
-            var isOwner = await _context.BusinessMembers
-                .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == businessId && bm.Role == UserRole.Owner && bm.IsActive);
-            
-            if (!isOwner) return ServiceResponse<List<LeaveResponseDto>>.ErrorResult(_localizer["UnauthorizedAction"]);
+            var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId);
+            var allowedPositions = JobTitles.EffectiveManagementPositions(business?.IsSubscribed ?? false);
+            var isManager = await _context.BusinessMembers
+                .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == businessId && allowedPositions.Contains(bm.Position) && bm.IsActive);
+
+            if (!isManager) return ServiceResponse<List<LeaveResponseDto>>.ErrorResult(_localizer["UnauthorizedAction"]);
             
             var leaves = await _context.MemberLeaves
                 .Include(l => l.BusinessMember)
@@ -94,10 +97,12 @@ namespace Personelim.Services.Leave
             
             if (leave == null) return ServiceResponse<LeaveResponseDto>.ErrorResult(_localizer["LeaveRequestNotFound"]);
             
-            var isOwner = await _context.BusinessMembers
-                .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == leave.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-            
-            if (!isOwner) return ServiceResponse<LeaveResponseDto>.ErrorResult(_localizer["UnauthorizedAction"]);
+            var leaveBusiness = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == leave.BusinessMember.BusinessId);
+            var allowedForStatus = JobTitles.EffectiveManagementPositions(leaveBusiness?.IsSubscribed ?? false);
+            var isManager = await _context.BusinessMembers
+                .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == leave.BusinessMember.BusinessId && allowedForStatus.Contains(bm.Position) && bm.IsActive);
+
+            if (!isManager) return ServiceResponse<LeaveResponseDto>.ErrorResult(_localizer["UnauthorizedAction"]);
             
             leave.Status = requestDto.Status;
             if (requestDto.Status == LeaveStatus.Rejected)
@@ -120,12 +125,14 @@ namespace Personelim.Services.Leave
             
             if (leave == null) return ServiceResponse<bool>.ErrorResult(_localizer["LeaveRequestNotFound"]);
             
-            bool isOwner = await _context.BusinessMembers
-                .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == leave.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-            
+            var deleteLeaveB = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == leave.BusinessMember.BusinessId);
+            var allowedForDelete = JobTitles.EffectiveManagementPositions(deleteLeaveB?.IsSubscribed ?? false);
+            bool isManager = await _context.BusinessMembers
+                .AnyAsync(bm => bm.UserId == userId && bm.BusinessId == leave.BusinessMember.BusinessId && allowedForDelete.Contains(bm.Position) && bm.IsActive);
+
             bool isSelf = leave.BusinessMember.UserId == userId;
-            
-            if (!isOwner && !isSelf) return ServiceResponse<bool>.ErrorResult(_localizer["UnauthorizedAction"]);
+
+            if (!isManager && !isSelf) return ServiceResponse<bool>.ErrorResult(_localizer["UnauthorizedAction"]);
             
             if (isSelf && leave.Status != LeaveStatus.Pending)
             {

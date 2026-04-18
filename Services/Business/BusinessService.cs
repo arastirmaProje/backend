@@ -204,7 +204,6 @@ namespace Personelim.Services.Business
                 {
                     Business = mainBusiness,
                     UserId = userId,
-                    Role = Personelim.Models.Enums.UserRole.Owner,
                     Position = "İşletme Sahibi",
                     JoinedAt = DateTime.UtcNow,
                     IsActive = true
@@ -219,7 +218,8 @@ namespace Personelim.Services.Business
                     verificationCode
                 );
                 
-                if (!mailSent) throw new Exception("Doğrulama e-postası gönderilemedi.");
+                if (!mailSent)
+                    _logger.LogWarning("Email gönderilemedi. Doğrulama kodu: {Code} — Email: {Email}", verificationCode, user.Email);
                 
                 await transaction.CommitAsync();
                 
@@ -304,8 +304,58 @@ namespace Personelim.Services.Business
                 ParentBusinessName = business.ParentBusiness?.Name,
                 IsSubBusiness = business.ParentBusinessId != null,
                 SubBusinessCount = business.SubBusinesses?.Count ?? 0,
+                IsSubscribed = business.IsSubscribed,
                 CreatedAt = business.CreatedAt
             };
+        }
+
+        public async Task<ServiceResponse<bool>> SubscribeAsync(Guid userId, Guid businessId)
+        {
+            try
+            {
+                var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
+                if (business == null)
+                    return ServiceResponse<bool>.ErrorResult(_localizer["BusinessNotFound"]);
+
+                if (business.OwnerId != userId)
+                    return ServiceResponse<bool>.ErrorResult(_localizer["UnauthorizedAction"]);
+
+                if (business.IsSubscribed)
+                    return ServiceResponse<bool>.SuccessResult(true);
+
+                business.IsSubscribed = true;
+                business.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                return ServiceResponse<bool>.SuccessResult(true);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<bool>.ErrorResult(_localizer["GeneralError"], ex.Message);
+            }
+        }
+
+        public async Task<ServiceResponse<bool>> UnsubscribeAsync(Guid userId, Guid businessId)
+        {
+            try
+            {
+                var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId && b.IsActive);
+                if (business == null)
+                    return ServiceResponse<bool>.ErrorResult(_localizer["BusinessNotFound"]);
+
+                if (business.OwnerId != userId)
+                    return ServiceResponse<bool>.ErrorResult(_localizer["UnauthorizedAction"]);
+
+                business.IsSubscribed = false;
+                business.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                return ServiceResponse<bool>.SuccessResult(true);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<bool>.ErrorResult(_localizer["GeneralError"], ex.Message);
+            }
         }
         
         public async Task<ServiceResponse<BusinessDocumentResponseDto>> UploadBusinessDocumentAsync(

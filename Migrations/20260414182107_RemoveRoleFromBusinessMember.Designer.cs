@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Personelim.Data;
@@ -11,9 +12,11 @@ using Personelim.Data;
 namespace Personelim.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414182107_RemoveRoleFromBusinessMember")]
+    partial class RemoveRoleFromBusinessMember
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -86,9 +89,6 @@ namespace Personelim.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsSubscribed")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
 
@@ -149,9 +149,6 @@ namespace Personelim.Migrations
                     b.Property<Guid>("BusinessId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("DepartmentId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -179,39 +176,10 @@ namespace Personelim.Migrations
 
                     b.HasIndex("BusinessId");
 
-                    b.HasIndex("DepartmentId");
-
                     b.HasIndex("UserId", "BusinessId")
                         .IsUnique();
 
                     b.ToTable("BusinessMembers");
-                });
-
-            modelBuilder.Entity("Personelim.Models.Department", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId");
-
-                    b.ToTable("Departments");
                 });
 
             modelBuilder.Entity("Personelim.Models.District", b =>
@@ -658,11 +626,6 @@ namespace Personelim.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Personelim.Models.Department", "Department")
-                        .WithMany("Members")
-                        .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Personelim.Models.User", "User")
                         .WithMany("BusinessMemberships")
                         .HasForeignKey("UserId")
@@ -671,20 +634,7 @@ namespace Personelim.Migrations
 
                     b.Navigation("Business");
 
-                    b.Navigation("Department");
-
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Personelim.Models.Department", b =>
-                {
-                    b.HasOne("Personelim.Models.Business", "Business")
-                        .WithMany()
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Business");
                 });
 
             modelBuilder.Entity("Personelim.Models.District", b =>
@@ -791,11 +741,6 @@ namespace Personelim.Migrations
             modelBuilder.Entity("Personelim.Models.BusinessMember", b =>
                 {
                     b.Navigation("Documents");
-                });
-
-            modelBuilder.Entity("Personelim.Models.Department", b =>
-                {
-                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("Personelim.Models.Province", b =>

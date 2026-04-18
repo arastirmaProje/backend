@@ -20,6 +20,7 @@ namespace Personelim.Models
         public int? DistrictId { get; set; }
         public Guid OwnerId { get; set; }
         public Guid? ParentBusinessId { get; set; }
+        public bool IsSubscribed { get; set; } = false;
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }

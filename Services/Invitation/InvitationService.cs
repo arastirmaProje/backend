@@ -81,8 +81,7 @@ namespace Personelim.Services.Invitation
                 {
                     BusinessId = requestDto.BusinessId,
                     UserId = targetUser.Id,
-                    Role = UserRole.Employee,
-                    Position = _localizer["PersonnelRole"],
+                    Position = requestDto.Position ?? "Diğer",
                     JoinedAt = DateTime.UtcNow,
                     IsActive = true
                 };

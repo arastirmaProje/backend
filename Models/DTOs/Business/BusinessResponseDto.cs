@@ -23,6 +23,7 @@ namespace Personelim.DTOs.Business
         
         public string Role { get; set; }
         public int MemberCount { get; set; }
+        public bool IsSubscribed { get; set; }
         
         public Guid? ParentBusinessId { get; set; }
         public string? ParentBusinessName { get; set; }

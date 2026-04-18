@@ -133,13 +133,15 @@ namespace Personelim.Services.Task
                 var task = await _context.TaskItems.FindAsync(taskId);
                 if (task == null) return ServiceResponse<bool>.ErrorResult(_localizer["TaskNotFound"]);
 
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm =>
+                var taskBusiness = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == task.BusinessId);
+                var allowedForTask = JobTitles.EffectiveManagementPositions(taskBusiness?.IsSubscribed ?? false);
+                var isManager = await _context.BusinessMembers.AnyAsync(bm =>
                     bm.UserId == currentUserId &&
                     bm.BusinessId == task.BusinessId &&
-                    bm.Role == UserRole.Owner &&
+                    allowedForTask.Contains(bm.Position) &&
                     bm.IsActive);
-                
-                if (!isOwner) return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionDeleteTask"]);
+
+                if (!isManager) return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionDeleteTask"]);
 
                 _context.TaskItems.Remove(task);
                 await _context.SaveChangesAsync();

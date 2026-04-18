@@ -4,6 +4,7 @@ namespace Personelim.DTOs.Invitation
     {
         public Guid BusinessId { get; set; }
         public string Email { get; set; }
+        public string? Position { get; set; }
         public string? Message { get; set; }
     }
 }

@@ -6,9 +6,9 @@ namespace Personelim.DTOs.BusinessMember
         public string Email { get; set; }
         public string FirstName { get; set; }
         public string LastName { get; set; }
-        public string Role { get; set; } = "Employee"; 
-        public string Position { get; set; }
+        public int PositionId { get; set; }
+        public Guid? DepartmentId { get; set; }
         public decimal? Salary { get; set; }
-        public string TCIdentityNumber { get; set; }
+        public string? TCIdentityNumber { get; set; }
     }
 }

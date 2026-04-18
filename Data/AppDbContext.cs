@@ -23,6 +23,7 @@ namespace Personelim.Data
         public DbSet<PerformanceReport> PerformanceReports { get; set; }
         
         public DbSet<BusinessDocument> BusinessDocuments { get; set; }
+        public DbSet<Department> Departments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -68,13 +69,21 @@ namespace Personelim.Data
                     .IsRequired(false);
             });
             
+            modelBuilder.Entity<Department>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+
+                entity.HasOne(e => e.Business)
+                    .WithMany()
+                    .HasForeignKey(e => e.BusinessId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
             modelBuilder.Entity<BusinessMember>(entity =>
             {
                 entity.HasKey(e => e.Id);
-
-                entity.Property(e => e.Role)
-                    .HasConversion<string>();
-                
+                entity.Property(e => e.Position).IsRequired().HasMaxLength(100);
                 entity.HasIndex(e => new { e.UserId, e.BusinessId }).IsUnique();
 
                 entity.HasOne(e => e.User)
@@ -86,6 +95,12 @@ namespace Personelim.Data
                     .WithMany(b => b.Members)
                     .HasForeignKey(e => e.BusinessId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(e => e.Department)
+                    .WithMany(d => d.Members)
+                    .HasForeignKey(e => e.DepartmentId)
+                    .OnDelete(DeleteBehavior.SetNull)
+                    .IsRequired(false);
             });
             
             modelBuilder.Entity<Invitation>(entity =>

@@ -106,11 +106,9 @@ namespace Personelim.Services.Auth
                 var membership = await _context.BusinessMembers
                     .FirstOrDefaultAsync(bm => bm.UserId == user.Id && bm.IsActive);
                 
-                string userRole = "Owner"; 
-                if (membership != null)
-                {
-                    userRole = membership.Role.ToString();
-                }
+                string userRole = membership != null
+                    ? Personelim.Helpers.JobTitles.GetRole(membership.Position).ToString()
+                    : "Owner";
                 
                 user.LastLoginAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();

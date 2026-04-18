@@ -16,5 +16,6 @@ namespace Personelim.Services.BusinessMember
         Task<ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>> UpdateDocumentAsync(Guid currentUserId, Guid documentId, UpdateDocumentRequestDto requestDto);
         Task<ServiceResponse<bool>> DeleteDocumentAsync(Guid currentUserId, Guid documentId);
         Task<ServiceResponse<DocumentDownloadResponseDto>> GetDocumentFileAsync(Guid currentUserId, Guid documentId);
+        Task<ServiceResponse<Guid>> AddEmployeeDirectlyAsync(Guid currentUserId, AddEmployeeRequestDto requestDto);
     }
 }

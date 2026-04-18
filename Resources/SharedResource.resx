@@ -97,6 +97,10 @@
   <data name="TCInvalid" xml:space="preserve"><value>TC Kimlik Numarası 11 haneli rakamlardan oluşmalıdır.</value></data>
   <data name="CannotRemoveSelf" xml:space="preserve"><value>Kendinizi bu ekrandan çıkartamazsınız.</value></data>
   <data name="NoPermissionRemovePersonnel" xml:space="preserve"><value>Personel çıkartma yetkiniz yok.</value></data>
+  <data name="NoPermissionUpdatePersonnel" xml:space="preserve"><value>Personel güncelleme yetkiniz yok.</value></data>
+  <data name="CannotEditHigherOrEqualRole" xml:space="preserve"><value>Kendi rolünüze eşit veya üzerindeki bir üyeyi düzenleyemezsiniz.</value></data>
+  <data name="CannotAssignHigherRole" xml:space="preserve"><value>Kendi rolünüzden yüksek bir rol atayamazsınız.</value></data>
+  <data name="InvalidJobTitle" xml:space="preserve"><value>Geçersiz pozisyon. Lütfen listeden geçerli bir pozisyon seçin.</value></data>
   <data name="PersonnelRemoved" xml:space="preserve"><value>Personel işletmeden çıkartıldı.</value></data>
   <data name="ErrorRemovePersonnel" xml:space="preserve"><value>Personel çıkartılırken hata oluştu.</value></data>
   <data name="OnlyPdfAllowed" xml:space="preserve"><value>Sadece PDF dosyaları yüklenebilir.</value></data>

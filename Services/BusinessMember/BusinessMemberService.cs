@@ -15,13 +15,13 @@ namespace Personelim.Services.BusinessMember
     public class BusinessMemberService : IBusinessMemberService
     {
         private readonly AppDbContext _context;
-        private readonly IWebHostEnvironment _env; 
+        private readonly IWebHostEnvironment _env;
         private readonly IEmailService _emailService;
         private readonly IStringLocalizer<SharedResource> _localizer;
 
         public BusinessMemberService(
-            AppDbContext context, 
-            IWebHostEnvironment env, 
+            AppDbContext context,
+            IWebHostEnvironment env,
             IEmailService emailService,
             IStringLocalizer<SharedResource> localizer)
         {
@@ -30,7 +30,7 @@ namespace Personelim.Services.BusinessMember
             _emailService = emailService;
             _localizer = localizer;
         }
-        
+
         public async Task<ServiceResponse<List<BusinessMemberResponseDto>>> GetMembersByBusinessIdAsync(Guid currentUserId, Guid businessId)
         {
             try
@@ -39,123 +39,126 @@ namespace Personelim.Services.BusinessMember
                     .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == businessId && bm.IsActive);
                 if (!isMember)
                     return ServiceResponse<List<BusinessMemberResponseDto>>.ErrorResult(_localizer["NoPermissionViewPersonnel"]);
-                
+
+                var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == businessId);
+                bool isSubscribed = business?.IsSubscribed ?? false;
+
                 var members = await _context.BusinessMembers
                     .Include(bm => bm.User)
+                    .Include(bm => bm.Department)
                     .Where(bm => bm.BusinessId == businessId && bm.IsActive)
-                    .Select(bm => new BusinessMemberResponseDto
-                    {
-                        Id = bm.Id,
-                        UserId = bm.UserId,
-                        FullName = bm.User.FirstName + " " + bm.User.LastName,
-                        Email = bm.User.Email,
-                        Role = bm.Role.ToString(),
-                        Position = bm.Position,
-                        Salary = bm.Salary,                 
-                        TCIdentityNumber = bm.TCIdentityNumber, 
-                        JoinedAt = bm.JoinedAt,
-                        IsActive = bm.IsActive
-                    })
                     .ToListAsync();
-                return ServiceResponse<List<BusinessMemberResponseDto>>.SuccessResult(members);
+
+                var result = members.Select(bm => MapToDto(bm, isSubscribed)).ToList();
+                return ServiceResponse<List<BusinessMemberResponseDto>>.SuccessResult(result);
             }
             catch (Exception ex)
             {
                 return ServiceResponse<List<BusinessMemberResponseDto>>.ErrorResult(_localizer["ErrorPersonnelList"], ex.Message);
             }
         }
-        
+
         public async Task<ServiceResponse<BusinessMemberResponseDto>> GetMemberByIdAsync(Guid currentUserId, Guid memberId)
         {
             try
             {
                 var member = await _context.BusinessMembers
                     .Include(bm => bm.User)
-                    .Include(bm => bm.Documents) 
+                    .Include(bm => bm.Department)
+                    .Include(bm => bm.Documents)
                     .FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
                 if (member == null)
                     return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["PersonnelNotFound"]);
-                
-                var requester = await _context.BusinessMembers
-                    .FirstOrDefaultAsync(bm => bm.UserId == currentUserId && bm.BusinessId == member.BusinessId && bm.IsActive);
-                if (requester == null)
+
+                var isMember = await _context.BusinessMembers
+                    .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == member.BusinessId && bm.IsActive);
+                if (!isMember)
                     return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["NoPermissionViewPersonnel"]);
-                
-                var response = new BusinessMemberResponseDto
-                {
-                    Id = member.Id,
-                    UserId = member.UserId,
-                    FullName = member.User.FirstName + " " + member.User.LastName,
-                    Email = member.User.Email,
-                    Role = member.Role.ToString(),
-                    Position = member.Position,
-                    Salary = member.Salary,                
-                    TCIdentityNumber = member.TCIdentityNumber, 
-                    JoinedAt = member.JoinedAt,
-                    IsActive = member.IsActive,
-                    Documents = member.Documents.Select(d => new BusinessMemberResponseDto.MemberDocumentResponse
-                    {
-                        Id = d.Id,
-                        DocumentType = d.DocumentType,
-                        FileName = d.FileName,
-                        FileUrl = d.FilePath,
-                        UploadedAt = d.UploadedAt
-                    }).ToList()
-                };
-                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(response);
+
+                var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == member.BusinessId);
+                bool isSubscribed = business?.IsSubscribed ?? false;
+
+                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(MapToDto(member, isSubscribed));
             }
             catch (Exception ex)
             {
                 return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["ErrorPersonnelDetail"], ex.Message);
             }
         }
-        
+
         public async Task<ServiceResponse<BusinessMemberResponseDto>> UpdateMemberAsync(Guid currentUserId, Guid memberId, UpdateBusinessMemberRequestDto requestDto)
         {
             try
             {
                 var targetMember = await _context.BusinessMembers
                     .Include(bm => bm.User)
+                    .Include(bm => bm.Department)
                     .FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
                 if (targetMember == null)
                     return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["PersonnelNotFound"]);
-                
+
+                var requester = await _context.BusinessMembers
+                    .FirstOrDefaultAsync(bm => bm.UserId == currentUserId && bm.BusinessId == targetMember.BusinessId && bm.IsActive);
+
+                var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == targetMember.BusinessId);
+                bool isSubscribed = business?.IsSubscribed ?? false;
+
+                var requesterRole = JobTitles.GetRole(requester?.Position);
+                var targetRole    = JobTitles.GetRole(targetMember.Position);
+
+                var allowedPositions = JobTitles.EffectiveManagementPositions(isSubscribed);
+                if (requester == null || !allowedPositions.Contains(requester.Position))
+                    return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["NoPermissionUpdatePersonnel"]);
+
+                if (isSubscribed && targetRole >= requesterRole)
+                    return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["CannotEditHigherOrEqualRole"]);
+
+                if (requestDto.PositionId.HasValue)
+                {
+                    if (!isSubscribed)
+                        return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["SubscriptionRequired"]);
+
+                    if (!JobTitles.IsValidId(requestDto.PositionId.Value))
+                        return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["InvalidJobTitle"]);
+
+                    if (JobTitles.GetRoleById(requestDto.PositionId.Value) >= requesterRole)
+                        return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["CannotAssignHigherRole"]);
+
+                    targetMember.Position = JobTitles.GetTitleName(requestDto.PositionId.Value)!;
+                }
+
+                if (requestDto.DepartmentId.HasValue)
+                {
+                    if (!isSubscribed)
+                        return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["SubscriptionRequired"]);
+
+                    var deptExists = await _context.Departments
+                        .AnyAsync(d => d.Id == requestDto.DepartmentId && d.BusinessId == targetMember.BusinessId && d.IsActive);
+                    if (!deptExists)
+                        return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["GeneralError"]);
+
+                    targetMember.DepartmentId = requestDto.DepartmentId;
+                }
+
                 if (!string.IsNullOrEmpty(requestDto.TCIdentityNumber))
                 {
                     if (requestDto.TCIdentityNumber.Length != 11 || !requestDto.TCIdentityNumber.All(char.IsDigit))
-                    {
                         return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["TCInvalid"]);
-                    }
                 }
-                
-                targetMember.Role = requestDto.Role;
-                targetMember.Position = requestDto.Position;
-                targetMember.Salary = requestDto.Salary;                 
-                targetMember.TCIdentityNumber = requestDto.TCIdentityNumber; 
+
+                if (requestDto.Salary.HasValue)          targetMember.Salary           = requestDto.Salary;
+                if (requestDto.TCIdentityNumber != null)  targetMember.TCIdentityNumber = requestDto.TCIdentityNumber;
                 targetMember.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-                
-                var response = new BusinessMemberResponseDto
-                {
-                    Id = targetMember.Id,
-                    UserId = targetMember.UserId,
-                    FullName = targetMember.User.FirstName + " " + targetMember.User.LastName,
-                    Email = targetMember.User.Email,
-                    Role = targetMember.Role.ToString(),
-                    Position = targetMember.Position,
-                    Salary = targetMember.Salary,
-                    TCIdentityNumber = targetMember.TCIdentityNumber,
-                    JoinedAt = targetMember.JoinedAt,
-                    IsActive = targetMember.IsActive
-                };
-                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(response, _localizer["PersonnelUpdated"]);
+
+                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(MapToDto(targetMember, isSubscribed), _localizer["PersonnelUpdated"]);
             }
             catch (Exception ex)
             {
                 return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["ErrorUpdatePersonnel"], ex.Message);
             }
         }
-        
+
         public async Task<ServiceResponse<bool>> RemoveMemberAsync(Guid currentUserId, Guid memberId)
         {
             try
@@ -164,20 +167,27 @@ namespace Personelim.Services.BusinessMember
                     .FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
                 if (targetMember == null)
                     return ServiceResponse<bool>.ErrorResult(_localizer["PersonnelNotFound"]);
-                
+
                 if (targetMember.UserId == currentUserId)
-                {
                     return ServiceResponse<bool>.ErrorResult(_localizer["CannotRemoveSelf"]);
-                }
-                
+
                 var requester = await _context.BusinessMembers
                     .FirstOrDefaultAsync(bm => bm.UserId == currentUserId && bm.BusinessId == targetMember.BusinessId && bm.IsActive);
-                if (requester == null || requester.Role != UserRole.Owner)
-                {
-                     return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionRemovePersonnel"]);
-                }
-                
-                targetMember.IsActive = false;
+
+                var businessForRemove = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == targetMember.BusinessId);
+                bool isSubscribedForRemove = businessForRemove?.IsSubscribed ?? false;
+
+                var requesterRole = JobTitles.GetRole(requester?.Position);
+                var targetRole    = JobTitles.GetRole(targetMember.Position);
+
+                var allowedForRemove = JobTitles.EffectiveManagementPositions(isSubscribedForRemove);
+                if (requester == null || !allowedForRemove.Contains(requester.Position))
+                    return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionRemovePersonnel"]);
+
+                if (isSubscribedForRemove && targetRole >= requesterRole)
+                    return ServiceResponse<bool>.ErrorResult(_localizer["CannotEditHigherOrEqualRole"]);
+
+                targetMember.IsActive  = false;
                 targetMember.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
                 return ServiceResponse<bool>.SuccessResult(true, _localizer["PersonnelRemoved"]);
@@ -187,52 +197,50 @@ namespace Personelim.Services.BusinessMember
                 return ServiceResponse<bool>.ErrorResult(_localizer["ErrorRemovePersonnel"], ex.Message);
             }
         }
-        
+
         public async Task<ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>> UploadDocumentAsync(Guid currentUserId, Guid memberId, UploadDocumentRequestDto requestDto)
         {
             try
             {
                 var member = await _context.BusinessMembers.FirstOrDefaultAsync(bm => bm.Id == memberId && bm.IsActive);
                 if (member == null) return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["PersonnelNotFound"]);
-                
+
                 if (requestDto.File == null || requestDto.File.Length == 0)
                     return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["FileNotFound"]);
-                
+
                 var ext = Path.GetExtension(requestDto.File.FileName).ToLower();
                 if (ext != ".pdf")
                     return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["OnlyPdfAllowed"]);
-               
+
                 string uploadFolder = Path.Combine(_env.WebRootPath, "uploads", "documents", member.BusinessId.ToString(), member.Id.ToString());
                 if (!Directory.Exists(uploadFolder)) Directory.CreateDirectory(uploadFolder);
-                
+
                 string uniqueFileName = Guid.NewGuid().ToString() + ext;
-                string fullPath = Path.Combine(uploadFolder, uniqueFileName);
-                
+                string fullPath       = Path.Combine(uploadFolder, uniqueFileName);
+
                 using (var stream = new FileStream(fullPath, FileMode.Create))
-                {
                     await requestDto.File.CopyToAsync(stream);
-                }
-                
+
                 string dbFilePath = Path.Combine("uploads", "documents", member.BusinessId.ToString(), member.Id.ToString(), uniqueFileName).Replace("\\", "/");
                 var document = new MemberDocument
                 {
                     BusinessMemberId = memberId,
-                    DocumentType = requestDto.DocumentType,
-                    FileName = requestDto.File.FileName, 
-                    FilePath = dbFilePath,
-                    FileExtension = ext,
-                    UploadedAt = DateTime.UtcNow
+                    DocumentType     = requestDto.DocumentType,
+                    FileName         = requestDto.File.FileName,
+                    FilePath         = dbFilePath,
+                    FileExtension    = ext,
+                    UploadedAt       = DateTime.UtcNow
                 };
                 _context.MemberDocuments.Add(document);
                 await _context.SaveChangesAsync();
-                
+
                 return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.SuccessResult(new BusinessMemberResponseDto.MemberDocumentResponse
                 {
-                    Id = document.Id,
+                    Id           = document.Id,
                     DocumentType = document.DocumentType,
-                    FileName = document.FileName,
-                    FileUrl = document.FilePath,
-                    UploadedAt = document.UploadedAt
+                    FileName     = document.FileName,
+                    FileUrl      = document.FilePath,
+                    UploadedAt   = document.UploadedAt
                 }, _localizer["DocumentUploadSuccess"]);
             }
             catch (Exception ex)
@@ -240,7 +248,7 @@ namespace Personelim.Services.BusinessMember
                 return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["ErrorDocumentUpload"] + ": " + ex.Message);
             }
         }
-        
+
         public async Task<ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>> UpdateDocumentAsync(Guid currentUserId, Guid documentId, UpdateDocumentRequestDto requestDto)
         {
             try
@@ -249,35 +257,37 @@ namespace Personelim.Services.BusinessMember
                     .Include(d => d.BusinessMember)
                     .FirstOrDefaultAsync(d => d.Id == documentId);
                 if (doc == null) return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["DocumentNotFound"]);
-                
-                var isOwner = await _context.BusinessMembers
-                    .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-                if (!isOwner) return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["NoPermissionUpdateDocument"]);
-                
+
+                var docBusiness = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == doc.BusinessMember.BusinessId);
+                var docUpdateAllowed = JobTitles.EffectiveManagementPositions(docBusiness?.IsSubscribed ?? false);
+                var canUpdateDoc = await _context.BusinessMembers
+                    .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && docUpdateAllowed.Contains(bm.Position) && bm.IsActive);
+                if (!canUpdateDoc) return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["NoPermissionUpdateDocument"]);
+
                 if (!string.IsNullOrWhiteSpace(requestDto.DocumentType)) doc.DocumentType = requestDto.DocumentType;
-                
+
                 if (requestDto.File != null && requestDto.File.Length > 0)
                 {
                     var ext = Path.GetExtension(requestDto.File.FileName).ToLower();
                     if (ext != ".pdf")
                         return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.ErrorResult(_localizer["OnlyPdfAllowed"]);
-                    
+
                     string oldFullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
                     if (System.IO.File.Exists(oldFullPath)) System.IO.File.Delete(oldFullPath);
-                    
+
                     string uploadFolder = Path.Combine(_env.WebRootPath, "uploads", "documents", doc.BusinessMember.BusinessId.ToString(), doc.BusinessMember.Id.ToString());
                     if (!Directory.Exists(uploadFolder)) Directory.CreateDirectory(uploadFolder);
-                    
+
                     string uniqueFileName = Guid.NewGuid().ToString() + ext;
-                    string newFullPath = Path.Combine(uploadFolder, uniqueFileName);
+                    string newFullPath    = Path.Combine(uploadFolder, uniqueFileName);
                     using (var stream = new FileStream(newFullPath, FileMode.Create)) await requestDto.File.CopyToAsync(stream);
-                    
-                    doc.FileName = requestDto.File.FileName; 
-                    doc.FilePath = Path.Combine("uploads", "documents", doc.BusinessMember.BusinessId.ToString(), doc.BusinessMember.Id.ToString(), uniqueFileName).Replace("\\", "/");
+
+                    doc.FileName      = requestDto.File.FileName;
+                    doc.FilePath      = Path.Combine("uploads", "documents", doc.BusinessMember.BusinessId.ToString(), doc.BusinessMember.Id.ToString(), uniqueFileName).Replace("\\", "/");
                     doc.FileExtension = ext;
-                    doc.UploadedAt = DateTime.UtcNow; 
+                    doc.UploadedAt    = DateTime.UtcNow;
                 }
-                
+
                 await _context.SaveChangesAsync();
                 return ServiceResponse<BusinessMemberResponseDto.MemberDocumentResponse>.SuccessResult(new BusinessMemberResponseDto.MemberDocumentResponse
                 {
@@ -296,32 +306,38 @@ namespace Personelim.Services.BusinessMember
             if (doc == null) return ServiceResponse<DocumentDownloadResponseDto>.ErrorResult(_localizer["DocumentNotFound"]);
 
             bool isSelf = doc.BusinessMember.UserId == currentUserId;
-            bool isOwner = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-            
-            if (!isSelf && !isOwner)
+            var downloadBusiness = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == doc.BusinessMember.BusinessId);
+            var downloadAllowed = JobTitles.EffectiveManagementPositions(downloadBusiness?.IsSubscribed ?? false);
+            bool isManager = await _context.BusinessMembers
+                .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && downloadAllowed.Contains(bm.Position) && bm.IsActive);
+
+            if (!isSelf && !isManager)
                 return ServiceResponse<DocumentDownloadResponseDto>.ErrorResult(_localizer["NoPermissionViewDocument"]);
-            
+
             string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
             if (!System.IO.File.Exists(fullPath))
                 return ServiceResponse<DocumentDownloadResponseDto>.ErrorResult(_localizer["FileNotFoundOnServer"]);
-            
+
             byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(fullPath);
             return ServiceResponse<DocumentDownloadResponseDto>.SuccessResult(new DocumentDownloadResponseDto { FileBytes = fileBytes, FileName = doc.FileName, ContentType = "application/pdf" });
         }
-       
+
         public async Task<ServiceResponse<bool>> DeleteDocumentAsync(Guid currentUserId, Guid documentId)
         {
             try
             {
                 var doc = await _context.MemberDocuments.Include(d => d.BusinessMember).FirstOrDefaultAsync(d => d.Id == documentId);
                 if (doc == null) return ServiceResponse<bool>.ErrorResult(_localizer["DocumentNotFound"]);
-                
-                var isOwner = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-                if (!isOwner) return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionDeleteDocument"]);
-               
+
+                var deleteBusiness = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == doc.BusinessMember.BusinessId);
+                var deleteDocAllowed = JobTitles.EffectiveManagementPositions(deleteBusiness?.IsSubscribed ?? false);
+                var canDeleteDoc = await _context.BusinessMembers
+                    .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == doc.BusinessMember.BusinessId && deleteDocAllowed.Contains(bm.Position) && bm.IsActive);
+                if (!canDeleteDoc) return ServiceResponse<bool>.ErrorResult(_localizer["NoPermissionDeleteDocument"]);
+
                 string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath);
                 if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
-                
+
                 _context.MemberDocuments.Remove(doc);
                 await _context.SaveChangesAsync();
                 return ServiceResponse<bool>.SuccessResult(true, _localizer["DocumentDeleteSuccess"]);
@@ -334,55 +350,109 @@ namespace Personelim.Services.BusinessMember
 
         public async Task<ServiceResponse<Guid>> AddEmployeeDirectlyAsync(Guid currentUserId, AddEmployeeRequestDto requestDto)
         {
-             using var transaction = await _context.Database.BeginTransactionAsync();
-             try
-             {
-                 var isOwner = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == requestDto.BusinessId && bm.Role == UserRole.Owner && bm.IsActive);
-                 if (!isOwner) return ServiceResponse<Guid>.ErrorResult(_localizer["NoPermissionAddPersonnel"]);
-                 
-                 var businessName = await _context.Businesses.Where(b => b.Id == requestDto.BusinessId).Select(b => b.Name).FirstOrDefaultAsync();
-                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == requestDto.Email.ToLower());
-                 
-                 string temporaryPassword = null;
-                 bool isNewUser = false;
-                 if (user == null)
-                 {
-                     isNewUser = true;
-                     temporaryPassword = GenerateRandomPassword();
-                     user = new User { Id = Guid.NewGuid(), Email = requestDto.Email.Trim(), FirstName = requestDto.FirstName.Trim(), LastName = requestDto.LastName.Trim(), PasswordHash = BCrypt.Net.BCrypt.HashPassword(temporaryPassword), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-                     await _context.Users.AddAsync(user);
-                 }
-                 else
-                 {
-                     if (await _context.BusinessMembers.AnyAsync(bm => bm.UserId == user.Id && bm.BusinessId == requestDto.BusinessId && bm.IsActive))
-                         return ServiceResponse<Guid>.ErrorResult(_localizer["AlreadyMember"]);
-                 }
-                 
-                 if (!Enum.TryParse<UserRole>(requestDto.Role, true, out var roleEnum)) roleEnum = UserRole.Employee;
-                 var newMember = new Models.BusinessMember { BusinessId = requestDto.BusinessId, UserId = user.Id, Role = roleEnum, Position = requestDto.Position, Salary = requestDto.Salary, TCIdentityNumber = requestDto.TCIdentityNumber, JoinedAt = DateTime.UtcNow, IsActive = true };
-                 await _context.BusinessMembers.AddAsync(newMember);
-                 await _context.SaveChangesAsync();
-              
-                 bool mailSent = isNewUser 
-                     ? await _emailService.SendAccountCreatedEmailAsync(user.Email, user.FirstName, temporaryPassword, businessName)
-                     : await _emailService.SendAddedToBusinessEmailAsync(user.Email, user.FirstName, businessName);
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == requestDto.BusinessId);
+                bool isSubscribed = business?.IsSubscribed ?? false;
 
-                 await transaction.CommitAsync();
+                var allowedToAdd = JobTitles.EffectiveManagementPositions(isSubscribed);
+                var canAdd = await _context.BusinessMembers
+                    .AnyAsync(bm => bm.UserId == currentUserId && bm.BusinessId == requestDto.BusinessId && allowedToAdd.Contains(bm.Position) && bm.IsActive);
+                if (!canAdd) return ServiceResponse<Guid>.ErrorResult(_localizer["NoPermissionAddPersonnel"]);
 
-                 string msg = isNewUser 
-                     ? (mailSent ? _localizer["AccountCreatedMailSent"] : string.Format(_localizer["MailNotSent"], temporaryPassword))
-                     : _localizer["ExistingUserAdded"];
+                string positionToSave;
+                Guid? departmentIdToSave = null;
 
-                 return ServiceResponse<Guid>.SuccessResult(newMember.Id, msg);
-             }
-             catch (Exception ex)
-             {
-                 await transaction.RollbackAsync();
-                 return ServiceResponse<Guid>.ErrorResult(_localizer["GeneralError"], ex.Message);
-             }
+                if (isSubscribed)
+                {
+                    if (!JobTitles.IsValidId(requestDto.PositionId))
+                        return ServiceResponse<Guid>.ErrorResult(_localizer["InvalidJobTitle"]);
+
+                    positionToSave = JobTitles.GetTitleName(requestDto.PositionId)!;
+
+                    if (requestDto.DepartmentId.HasValue)
+                    {
+                        var deptExists = await _context.Departments
+                            .AnyAsync(d => d.Id == requestDto.DepartmentId && d.BusinessId == requestDto.BusinessId && d.IsActive);
+                        if (!deptExists)
+                            return ServiceResponse<Guid>.ErrorResult(_localizer["GeneralError"]);
+
+                        departmentIdToSave = requestDto.DepartmentId;
+                    }
+                }
+                else
+                {
+                    positionToSave = "Diğer";
+                }
+
+                var businessName = business?.Name;
+                var user         = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == requestDto.Email.ToLower());
+
+                string temporaryPassword = null;
+                bool   isNewUser         = false;
+                if (user == null)
+                {
+                    isNewUser        = true;
+                    temporaryPassword = GenerateRandomPassword();
+                    user = new User { Id = Guid.NewGuid(), Email = requestDto.Email.Trim(), FirstName = requestDto.FirstName.Trim(), LastName = requestDto.LastName.Trim(), PasswordHash = BCrypt.Net.BCrypt.HashPassword(temporaryPassword), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+                    await _context.Users.AddAsync(user);
+                }
+                else
+                {
+                    if (await _context.BusinessMembers.AnyAsync(bm => bm.UserId == user.Id && bm.BusinessId == requestDto.BusinessId && bm.IsActive))
+                        return ServiceResponse<Guid>.ErrorResult(_localizer["AlreadyMember"]);
+                }
+
+                var newMember = new Models.BusinessMember { BusinessId = requestDto.BusinessId, UserId = user.Id, Position = positionToSave, DepartmentId = departmentIdToSave, Salary = requestDto.Salary, TCIdentityNumber = requestDto.TCIdentityNumber, JoinedAt = DateTime.UtcNow, IsActive = true };
+                await _context.BusinessMembers.AddAsync(newMember);
+                await _context.SaveChangesAsync();
+
+                bool mailSent = isNewUser
+                    ? await _emailService.SendAccountCreatedEmailAsync(user.Email, user.FirstName, temporaryPassword, businessName)
+                    : await _emailService.SendAddedToBusinessEmailAsync(user.Email, user.FirstName, businessName);
+
+                await transaction.CommitAsync();
+
+                string msg = isNewUser
+                    ? (mailSent ? _localizer["AccountCreatedMailSent"] : string.Format(_localizer["MailNotSent"], temporaryPassword))
+                    : _localizer["ExistingUserAdded"];
+
+                return ServiceResponse<Guid>.SuccessResult(newMember.Id, msg);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return ServiceResponse<Guid>.ErrorResult(_localizer["GeneralError"], ex.Message);
+            }
         }
 
-        private string GenerateRandomPassword()
+        private static BusinessMemberResponseDto MapToDto(Models.BusinessMember bm, bool isSubscribed) => new()
+        {
+            Id               = bm.Id,
+            UserId           = bm.UserId,
+            FullName         = bm.User != null ? bm.User.FirstName + " " + bm.User.LastName : string.Empty,
+            Email            = bm.User?.Email ?? string.Empty,
+            PositionId       = isSubscribed ? JobTitles.GetTitleId(bm.Position) : 0,
+            PositionName     = isSubscribed ? bm.Position : "Diğer",
+            PermissionLevel  = isSubscribed ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
+            DepartmentId     = isSubscribed ? bm.DepartmentId : null,
+            DepartmentName   = isSubscribed ? bm.Department?.Category : null,
+            Salary           = bm.Salary,
+            TCIdentityNumber = bm.TCIdentityNumber,
+            JoinedAt         = bm.JoinedAt,
+            IsActive         = bm.IsActive,
+            Documents        = bm.Documents?.Select(d => new BusinessMemberResponseDto.MemberDocumentResponse
+            {
+                Id           = d.Id,
+                DocumentType = d.DocumentType,
+                FileName     = d.FileName,
+                FileUrl      = d.FilePath,
+                UploadedAt   = d.UploadedAt
+            }).ToList() ?? new()
+        };
+
+        private static string GenerateRandomPassword()
         {
             const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
             var random = new Random();

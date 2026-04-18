@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -17,6 +18,7 @@ using System.Text;
 using Microsoft.Extensions.FileProviders;
 using Personelim.Services.Shift;
 using Personelim.Services.Admin;
+using Personelim.Services.Department;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,6 +96,7 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IShiftService, ShiftService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<Personelim.Services.Performance.IPerformanceService, Personelim.Services.Performance.PerformanceService>();
 
 builder.Services.AddHttpClient("AiPerformance", c =>
@@ -145,8 +148,14 @@ builder.Services.AddSwaggerGen(options =>
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Personelim API",
-        Version = "v1"
+        Version = "v1",
+        Description = "Personelim personel yönetim sistemi API dokümantasyonu. " +
+                      "Tüm istekler için Authorization header'ına 'Bearer {token}' formatında JWT token gönderilmelidir."
     });
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
