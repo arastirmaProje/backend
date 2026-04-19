@@ -1,6 +1,6 @@
 namespace Personelim.Models;
 
-public class Meeting
+public class Schedule
 {
     public Guid Id { get; set; }
     public Guid BusinessId { get; set; }
@@ -15,7 +15,7 @@ public class Meeting
     public Business? Business { get; set; }
     public User? CreatedBy { get; set; }
 
-    public Meeting()
+    public Schedule()
     {
         Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
