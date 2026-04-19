@@ -5,6 +5,7 @@ using Personelim.Data;
 using Personelim.DTOs.Auth;
 using Personelim.Helpers;
 using Personelim.Models;
+using Personelim.Models.Enums;
 using Personelim.Resources;
 
 namespace Personelim.Services.Auth
@@ -27,10 +28,10 @@ namespace Personelim.Services.Auth
             try
             {
                 var user = await _context.Users
-                    .Include(u => u.BusinessMemberships)
+                    .Include(u => u.BusinessMemberships).ThenInclude(bm => bm.Business)
                     .Include(u => u.OwnedBusinesses)
                     .FirstOrDefaultAsync(u => u.Id == userId);
-                
+
                 if (user == null) return ServiceResponse<UserProfileResponseDto>.ErrorResult(_localizer["UserNotFound"]);
 
                 var response = new UserProfileResponseDto
@@ -43,7 +44,22 @@ namespace Personelim.Services.Auth
                     CreatedAt = user.CreatedAt,
                     LastLoginAt = user.LastLoginAt,
                     BusinessCount = user.BusinessMemberships.Count(bm => bm.IsActive),
-                    OwnedBusinessCount = user.OwnedBusinesses.Count(b => b.IsActive)
+                    OwnedBusinessCount = user.OwnedBusinesses.Count(b => b.IsActive),
+                    Memberships = user.BusinessMemberships
+                        .Where(bm => bm.IsActive && bm.Business != null)
+                        .Select(bm =>
+                        {
+                            var sub = bm.Business!.IsSubscribed;
+                            return new UserMembershipDto
+                            {
+                                BusinessMemberId = bm.Id,
+                                BusinessId       = bm.BusinessId,
+                                BusinessName     = bm.Business.Name,
+                                Role             = sub ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
+                                PositionId       = sub ? JobTitles.GetTitleId(bm.Position) : 0,
+                                PositionName     = sub ? bm.Position : "Diğer"
+                            };
+                        }).ToList()
                 };
                 return ServiceResponse<UserProfileResponseDto>.SuccessResult(response);
             }

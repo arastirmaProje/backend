@@ -8,7 +8,7 @@ namespace Personelim.DTOs.BusinessMember
         public string Email { get; set; }
         public int PositionId { get; set; }
         public string PositionName { get; set; }
-        public string PermissionLevel { get; set; }
+        public string Role { get; set; }
         public Guid? DepartmentId { get; set; }
         public string? DepartmentName { get; set; }
         public decimal? Salary { get; set; }

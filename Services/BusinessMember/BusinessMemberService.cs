@@ -435,7 +435,7 @@ namespace Personelim.Services.BusinessMember
             Email            = bm.User?.Email ?? string.Empty,
             PositionId       = isSubscribed ? JobTitles.GetTitleId(bm.Position) : 0,
             PositionName     = isSubscribed ? bm.Position : "Diğer",
-            PermissionLevel  = isSubscribed ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
+            Role             = isSubscribed ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
             DepartmentId     = isSubscribed ? bm.DepartmentId : null,
             DepartmentName   = isSubscribed ? bm.Department?.Category : null,
             Salary           = bm.Salary,
