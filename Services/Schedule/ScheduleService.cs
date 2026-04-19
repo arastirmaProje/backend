@@ -52,27 +52,33 @@ public class ScheduleService : IScheduleService
             var typeEmoji  = dto.Type == ScheduleType.Meeting ? "🤝" : "🎉";
             var slackEvent = dto.Type == ScheduleType.Meeting ? SlackEventTypes.MeetingCreated : SlackEventTypes.EventCreated;
 
+            var color = dto.Type == ScheduleType.Meeting ? "#8B5CF6" : "#F59E0B";
+
             await _slackService.SendAsync(dto.BusinessId, slackEvent, new
             {
-                blocks = new object[]
+                attachments = new object[]
                 {
-                    new { type = "header", text = new { type = "plain_text", text = $"{typeEmoji} Yeni {typeLabel} Oluşturuldu", emoji = true } },
-                    new { type = "divider" },
-                    new { type = "section", text = new { type = "mrkdwn", text = $"*{result.Title}*" } },
-                    new { type = "section", fields = new[]
+                    new
                     {
-                        new { type = "mrkdwn", text = $"👤 *Oluşturan*\n{result.CreatedByName}" },
-                        new { type = "mrkdwn", text = $"📌 *Tür*\n{typeLabel}" },
-                        new { type = "mrkdwn", text = $"📅 *Tarih*\n{result.Date:dd MMM yyyy}" },
-                        new { type = "mrkdwn", text = $"🕐 *Saat*\n{result.Date:HH:mm}" }
-                    }},
-                    string.IsNullOrWhiteSpace(result.Description)
-                        ? (object)new { type = "divider" }
-                        : new { type = "section", text = new { type = "mrkdwn", text = $"📝 *Açıklama*\n{result.Description}" } },
-                    new { type = "context", elements = new[] {
-                        new { type = "mrkdwn", text = $"🕐 Oluşturulma: {DateTime.UtcNow:dd.MM.yyyy HH:mm} UTC" }
-                    }},
-                    new { type = "divider" }
+                        color,
+                        blocks = new object[]
+                        {
+                            new { type = "section", text = new { type = "mrkdwn", text = $"{typeEmoji} *{typeLabel} Duyurusu*" } },
+                            new { type = "section", text = new { type = "mrkdwn", text = $"*{result.Title}*" } },
+                            new { type = "section", fields = new[]
+                            {
+                                new { type = "mrkdwn", text = $"*Tarih*\n{result.Date:dd MMM yyyy}" },
+                                new { type = "mrkdwn", text = $"*Saat*\n{result.Date:HH:mm}" },
+                                new { type = "mrkdwn", text = $"*Düzenleyen*\n{result.CreatedByName}" }
+                            }},
+                            string.IsNullOrWhiteSpace(result.Description)
+                                ? (object)new { type = "divider" }
+                                : new { type = "section", text = new { type = "mrkdwn", text = $"_{result.Description}_" } },
+                            new { type = "context", elements = new object[] {
+                                new { type = "mrkdwn", text = $"Takvime ekle: *{result.Date:dd MMM yyyy, HH:mm}*" }
+                            }}
+                        }
+                    }
                 }
             });
 

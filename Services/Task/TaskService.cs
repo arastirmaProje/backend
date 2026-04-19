@@ -61,25 +61,30 @@ namespace Personelim.Services.Task
                     var d = result.Data;
                     await _slackService.SendAsync(requestDto.BusinessId, SlackEventTypes.TaskCreated, new
                     {
-                        blocks = new object[]
+                        attachments = new object[]
                         {
-                            new { type = "header", text = new { type = "plain_text", text = "📋 Yeni Görev Oluşturuldu", emoji = true } },
-                            new { type = "divider" },
-                            new { type = "section", text = new { type = "mrkdwn", text = $"*{d.Title}*" } },
-                            new { type = "section", fields = new[]
+                            new
                             {
-                                new { type = "mrkdwn", text = $"👤 *Atayan*\n{d.AssignedByName}" },
-                                new { type = "mrkdwn", text = $"🙋 *Atanan*\n{d.AssignedToName}" },
-                                new { type = "mrkdwn", text = $"📅 *Başlangıç*\n{d.StartDate:dd MMM yyyy}" },
-                                new { type = "mrkdwn", text = $"🏁 *Bitiş*\n{d.EndDate:dd MMM yyyy}" }
-                            }},
-                            string.IsNullOrWhiteSpace(d.Description)
-                                ? (object)new { type = "divider" }
-                                : new { type = "section", text = new { type = "mrkdwn", text = $"📝 *Açıklama*\n{d.Description}" } },
-                            new { type = "context", elements = new[] {
-                                new { type = "mrkdwn", text = $"⏳ Durum: *Beklemede*  •  🕐 Oluşturulma: {DateTime.UtcNow:dd.MM.yyyy HH:mm} UTC" }
-                            }},
-                            new { type = "divider" }
+                                color = "#0070F3",
+                                blocks = new object[]
+                                {
+                                    new { type = "section", text = new { type = "mrkdwn", text = $"📋 *Yeni Görev Atandı*" } },
+                                    new { type = "section", text = new { type = "mrkdwn", text = $"*{d.Title}*" } },
+                                    new { type = "section", fields = new[]
+                                    {
+                                        new { type = "mrkdwn", text = $"*Atayan*\n{d.AssignedByName}" },
+                                        new { type = "mrkdwn", text = $"*Sorumlu*\n{d.AssignedToName}" },
+                                        new { type = "mrkdwn", text = $"*Başlangıç*\n{d.StartDate:dd MMM yyyy}" },
+                                        new { type = "mrkdwn", text = $"*Son Tarih*\n{d.EndDate:dd MMM yyyy}" }
+                                    }},
+                                    string.IsNullOrWhiteSpace(d.Description)
+                                        ? (object)new { type = "divider" }
+                                        : new { type = "section", text = new { type = "mrkdwn", text = $"_{d.Description}_" } },
+                                    new { type = "context", elements = new object[] {
+                                        new { type = "mrkdwn", text = $"⏳ Beklemede  •  {d.EndDate:dd MMM yyyy} tarihine kadar tamamlanmalı" }
+                                    }}
+                                }
+                            }
                         }
                     });
                 }
