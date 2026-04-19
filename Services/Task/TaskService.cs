@@ -58,24 +58,27 @@ namespace Personelim.Services.Task
                 var result = await GetTaskByIdInternal(newTask.Id);
                 if (result.Success && result.Data != null)
                 {
+                    var d = result.Data;
                     await _slackService.SendAsync(requestDto.BusinessId, SlackEventTypes.TaskCreated, new
                     {
                         blocks = new object[]
                         {
                             new { type = "header", text = new { type = "plain_text", text = "📋 Yeni Görev Oluşturuldu", emoji = true } },
-                            new { type = "section", fields = new[] {
-                                new { type = "mrkdwn", text = $"*Başlık:*\n{result.Data.Title}" },
-                                new { type = "mrkdwn", text = $"*Atayan:*\n{result.Data.AssignedByName}" }
+                            new { type = "divider" },
+                            new { type = "section", text = new { type = "mrkdwn", text = $"*{d.Title}*" } },
+                            new { type = "section", fields = new[]
+                            {
+                                new { type = "mrkdwn", text = $"👤 *Atayan*\n{d.AssignedByName}" },
+                                new { type = "mrkdwn", text = $"🙋 *Atanan*\n{d.AssignedToName}" },
+                                new { type = "mrkdwn", text = $"📅 *Başlangıç*\n{d.StartDate:dd MMM yyyy}" },
+                                new { type = "mrkdwn", text = $"🏁 *Bitiş*\n{d.EndDate:dd MMM yyyy}" }
                             }},
-                            new { type = "section", fields = new[] {
-                                new { type = "mrkdwn", text = $"*Atanan:*\n{result.Data.AssignedToName}" },
-                                new { type = "mrkdwn", text = $"*Durum:*\nBeklemede" }
+                            string.IsNullOrWhiteSpace(d.Description)
+                                ? (object)new { type = "divider" }
+                                : new { type = "section", text = new { type = "mrkdwn", text = $"📝 *Açıklama*\n{d.Description}" } },
+                            new { type = "context", elements = new[] {
+                                new { type = "mrkdwn", text = $"⏳ Durum: *Beklemede*  •  🕐 Oluşturulma: {DateTime.UtcNow:dd.MM.yyyy HH:mm} UTC" }
                             }},
-                            new { type = "section", fields = new[] {
-                                new { type = "mrkdwn", text = $"*Başlangıç:*\n{result.Data.StartDate:dd.MM.yyyy}" },
-                                new { type = "mrkdwn", text = $"*Bitiş:*\n{result.Data.EndDate:dd.MM.yyyy}" }
-                            }},
-                            new { type = "section", text = new { type = "mrkdwn", text = $"*Açıklama:*\n{result.Data.Description}" } },
                             new { type = "divider" }
                         }
                     });

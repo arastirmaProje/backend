@@ -21,6 +21,7 @@ using Personelim.Services.Admin;
 using Personelim.Services.Department;
 using Personelim.Services.Slack;
 using Personelim.Services.SlackWebhook;
+using Personelim.Services.Meeting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -101,6 +102,7 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<ISlackService, SlackService>();
 builder.Services.AddScoped<ISlackWebhookService, SlackWebhookService>();
+builder.Services.AddScoped<IMeetingService, MeetingService>();
 builder.Services.AddScoped<Personelim.Services.Performance.IPerformanceService, Personelim.Services.Performance.PerformanceService>();
 
 builder.Services.AddHttpClient("AiPerformance", c =>
