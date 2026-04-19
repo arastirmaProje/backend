@@ -79,11 +79,14 @@ namespace Personelim.Services.Invitation
                 
                 var member = new Models.BusinessMember
                 {
-                    BusinessId = requestDto.BusinessId,
-                    UserId = targetUser.Id,
-                    Position = requestDto.Position ?? "Diğer",
-                    JoinedAt = DateTime.UtcNow,
-                    IsActive = true
+                    BusinessId   = requestDto.BusinessId,
+                    UserId       = targetUser.Id,
+                    Position     = requestDto.PositionId.HasValue && JobTitles.IsValidId(requestDto.PositionId.Value)
+                        ? JobTitles.GetTitleName(requestDto.PositionId.Value)!
+                        : "Diğer",
+                    DepartmentId = requestDto.DepartmentId,
+                    JoinedAt     = DateTime.UtcNow,
+                    IsActive     = true
                 };
                 await _context.BusinessMembers.AddAsync(member);
                 

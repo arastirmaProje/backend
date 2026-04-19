@@ -30,6 +30,7 @@ namespace Personelim.Controllers
         {
             var result = JobTitles.All.Select(j => new
             {
+                id       = j.Id,
                 name     = j.Name,
                 role     = j.Role.ToString(),
                 category = j.Category
@@ -52,7 +53,7 @@ namespace Personelim.Controllers
                 {
                     categoryId   = JobTitles.GetCategoryId(g.Key),
                     categoryName = g.Key,
-                    titles       = g.Select(j => new { name = j.Name, role = j.Role.ToString() })
+                    titles       = g.Select(j => new { id = j.Id, name = j.Name, role = j.Role.ToString() })
                 });
             return Ok(result);
         }
@@ -91,7 +92,7 @@ namespace Personelim.Controllers
             {
                 categoryId,
                 categoryName,
-                titles = titles.Select(j => new { name = j.Name, role = j.Role.ToString() })
+                titles = titles.Select(j => new { id = j.Id, name = j.Name, role = j.Role.ToString() })
             });
         }
 
@@ -120,7 +121,7 @@ namespace Personelim.Controllers
             {
                 categoryId   = JobTitles.GetCategoryId(department.Category),
                 categoryName = department.Category,
-                titles       = titles.Select(j => new { name = j.Name, role = j.Role.ToString() })
+                titles       = titles.Select(j => new { id = j.Id, name = j.Name, role = j.Role.ToString() })
             });
         }
     }
