@@ -46,18 +46,20 @@ namespace Personelim.Services.Auth
                     BusinessCount = user.BusinessMemberships.Count(bm => bm.IsActive),
                     OwnedBusinessCount = user.OwnedBusinesses.Count(b => b.IsActive),
                     Memberships = user.BusinessMemberships
-                        .Where(bm => bm.IsActive && bm.Business != null)
+                        .Where(bm => bm.IsActive)
                         .Select(bm =>
                         {
-                            var sub = bm.Business!.IsSubscribed;
+                            var sub     = bm.Business?.IsSubscribed ?? false;
+                            var isOwner = bm.Business?.OwnerId == userId;
+                            var show    = sub || isOwner;
                             return new UserMembershipDto
                             {
                                 BusinessMemberId = bm.Id,
                                 BusinessId       = bm.BusinessId,
-                                BusinessName     = bm.Business.Name,
-                                Role             = sub ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
-                                PositionId       = sub ? JobTitles.GetTitleId(bm.Position) : 0,
-                                PositionName     = sub ? bm.Position : "Diğer"
+                                BusinessName     = bm.Business?.Name ?? string.Empty,
+                                Role             = show ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
+                                PositionId       = show ? JobTitles.GetTitleId(bm.Position) : 0,
+                                PositionName     = show ? bm.Position : "Diğer"
                             };
                         }).ToList()
                 };

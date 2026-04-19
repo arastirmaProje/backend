@@ -49,7 +49,7 @@ namespace Personelim.Services.BusinessMember
                     .Where(bm => bm.BusinessId == businessId && bm.IsActive)
                     .ToListAsync();
 
-                var result = members.Select(bm => MapToDto(bm, isSubscribed)).ToList();
+                var result = members.Select(bm => MapToDto(bm, isSubscribed, business?.OwnerId)).ToList();
                 return ServiceResponse<List<BusinessMemberResponseDto>>.SuccessResult(result);
             }
             catch (Exception ex)
@@ -78,7 +78,7 @@ namespace Personelim.Services.BusinessMember
                 var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == member.BusinessId);
                 bool isSubscribed = business?.IsSubscribed ?? false;
 
-                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(MapToDto(member, isSubscribed));
+                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(MapToDto(member, isSubscribed, business?.OwnerId));
             }
             catch (Exception ex)
             {
@@ -151,7 +151,7 @@ namespace Personelim.Services.BusinessMember
                 targetMember.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(MapToDto(targetMember, isSubscribed), _localizer["PersonnelUpdated"]);
+                return ServiceResponse<BusinessMemberResponseDto>.SuccessResult(MapToDto(targetMember, isSubscribed, business?.OwnerId), _localizer["PersonnelUpdated"]);
             }
             catch (Exception ex)
             {
@@ -427,17 +427,21 @@ namespace Personelim.Services.BusinessMember
             }
         }
 
-        private static BusinessMemberResponseDto MapToDto(Models.BusinessMember bm, bool isSubscribed) => new()
+        private static BusinessMemberResponseDto MapToDto(Models.BusinessMember bm, bool isSubscribed, Guid? businessOwnerId = null)
         {
+            var isOwner = businessOwnerId.HasValue && bm.UserId == businessOwnerId.Value;
+            var show    = isSubscribed || isOwner;
+            return new()
+            {
             Id               = bm.Id,
             UserId           = bm.UserId,
             FullName         = bm.User != null ? bm.User.FirstName + " " + bm.User.LastName : string.Empty,
             Email            = bm.User?.Email ?? string.Empty,
-            PositionId       = isSubscribed ? JobTitles.GetTitleId(bm.Position) : 0,
-            PositionName     = isSubscribed ? bm.Position : "Diğer",
-            Role             = isSubscribed ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
-            DepartmentId     = isSubscribed ? bm.DepartmentId : null,
-            DepartmentName   = isSubscribed ? bm.Department?.Category : null,
+            PositionId       = show ? JobTitles.GetTitleId(bm.Position) : 0,
+            PositionName     = show ? bm.Position : "Diğer",
+            Role             = show ? JobTitles.GetRole(bm.Position).ToString() : UserRole.Employee.ToString(),
+            DepartmentId     = show ? bm.DepartmentId : null,
+            DepartmentName   = show ? bm.Department?.Category : null,
             Salary           = bm.Salary,
             TCIdentityNumber = bm.TCIdentityNumber,
             JoinedAt         = bm.JoinedAt,
@@ -450,7 +454,8 @@ namespace Personelim.Services.BusinessMember
                 FileUrl      = d.FilePath,
                 UploadedAt   = d.UploadedAt
             }).ToList() ?? new()
-        };
+            };
+        }
 
         private static string GenerateRandomPassword()
         {
