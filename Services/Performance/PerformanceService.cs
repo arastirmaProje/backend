@@ -38,8 +38,12 @@ namespace Personelim.Services.Performance
                     bm.UserId == requestDto.EmployeeUserId &&
                     bm.BusinessId == requestDto.BusinessId &&
                     bm.IsActive);
-                
-                if (!isEmployee)
+
+                var isOwner = await _context.Businesses.AnyAsync(b =>
+                    b.Id == requestDto.BusinessId &&
+                    b.OwnerId == requestDto.EmployeeUserId);
+
+                if (!isEmployee && !isOwner)
                     return ServiceResponse<AiPerformanceResponseDto>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
 
                 var employee = await _context.Users.FirstOrDefaultAsync(u => u.Id == requestDto.EmployeeUserId && u.IsActive);
