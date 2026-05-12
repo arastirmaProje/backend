@@ -11,5 +11,7 @@ namespace Personelim.Services.Performance
         Task<ServiceResponse<List<PerformanceReportListItemDto>>> GetReportsByEmployeeAsync(Guid currentUserId, Guid businessId, Guid employeeUserId);
 
         Task<ServiceResponse<AiPerformanceResponseDto>> GetReportByIdAsync(Guid currentUserId, Guid reportId);
+
+        Task<ServiceResponse<AiDepartmanRaporuDto>> QueryDepartmentAsync(Guid currentUserId, DepartmanPerformanceQueryRequestDto request);
     }
 }
