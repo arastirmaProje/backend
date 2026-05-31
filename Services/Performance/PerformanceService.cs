@@ -16,6 +16,7 @@ namespace Personelim.Services.Performance
         private readonly AppDbContext _context;
         private readonly HttpClient _http;
         private readonly HttpClient _httpDepartman;
+        private readonly HttpClient _httpDepartmanGrafik;
         private readonly IStringLocalizer<SharedResource> _localizer;
 
         public PerformanceService(AppDbContext context, IHttpClientFactory factory, IStringLocalizer<SharedResource> localizer)
@@ -24,6 +25,7 @@ namespace Personelim.Services.Performance
             _localizer = localizer;
             _http = factory.CreateClient("AiPerformance");
             _httpDepartman = factory.CreateClient("AiDepartman");
+            _httpDepartmanGrafik = factory.CreateClient("AiDepartmanGrafik");
         }
 
         public async Task<ServiceResponse<AiPerformanceResponseDto>> QueryAsync(Guid currentUserId, PerformanceQueryRequestDto requestDto)
@@ -366,6 +368,34 @@ namespace Personelim.Services.Performance
             catch (Exception ex)
             {
                 return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["PerformanceReportError"], ex.Message);
+            }
+        }
+
+        public async Task<ServiceResponse<JsonElement>> QueryDepartmanGrafiklerAsync(Guid currentUserId, List<AiDepartmanIstegiDto> departmanlar)
+        {
+            try
+            {
+                if (departmanlar == null || departmanlar.Count == 0)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["DepartmentHasNoMembers"]);
+
+                var hasAnyMembership = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.IsActive)
+                                       || await _context.Businesses.AnyAsync(b => b.OwnerId == currentUserId);
+                if (!hasAnyMembership)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
+
+                var resp = await _httpDepartmanGrafik.PostAsJsonAsync("", departmanlar);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    var body = await resp.Content.ReadAsStringAsync();
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["AiServiceError"], body);
+                }
+
+                var aiResult = await resp.Content.ReadFromJsonAsync<JsonElement>();
+                return ServiceResponse<JsonElement>.SuccessResult(aiResult);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<JsonElement>.ErrorResult(_localizer["PerformanceReportError"], ex.Message);
             }
         }
 

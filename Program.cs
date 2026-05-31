@@ -107,13 +107,19 @@ builder.Services.AddScoped<Personelim.Services.Performance.IPerformanceService, 
 
 builder.Services.AddHttpClient("AiPerformance", c =>
 {
-    c.BaseAddress = new Uri("http://178.104.144.148:8001/api/performans");
+    c.BaseAddress = new Uri("http://178.104.144.148:8000/api/performans");
     c.Timeout = TimeSpan.FromSeconds(60);
 });
 
 builder.Services.AddHttpClient("AiDepartman", c =>
 {
-    c.BaseAddress = new Uri("http://178.104.144.148:8001/api/departman/rapor");
+    c.BaseAddress = new Uri("http://178.104.144.148:8000/api/departman/rapor");
+    c.Timeout = TimeSpan.FromSeconds(120);
+});
+
+builder.Services.AddHttpClient("AiDepartmanGrafik", c =>
+{
+    c.BaseAddress = new Uri("http://178.104.144.148:8000/api/departman/grafikler");
     c.Timeout = TimeSpan.FromSeconds(120);
 });
 

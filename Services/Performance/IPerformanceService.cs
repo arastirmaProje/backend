@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Personelim.DTOs.Performance;
 using Personelim.Helpers;
 
@@ -13,5 +14,7 @@ namespace Personelim.Services.Performance
         Task<ServiceResponse<AiPerformanceResponseDto>> GetReportByIdAsync(Guid currentUserId, Guid reportId);
 
         Task<ServiceResponse<AiDepartmanRaporuDto>> QueryDepartmentAsync(Guid currentUserId, DepartmanPerformanceQueryRequestDto request);
+
+        Task<ServiceResponse<JsonElement>> QueryDepartmanGrafiklerAsync(Guid currentUserId, List<AiDepartmanIstegiDto> departmanlar);
     }
 }

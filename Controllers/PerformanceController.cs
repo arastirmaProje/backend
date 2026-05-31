@@ -58,6 +58,16 @@ namespace Personelim.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
+        [HttpPost("/api/departman/grafikler")]
+        public async Task<IActionResult> DepartmanGrafikler([FromBody] List<AiDepartmanIstegiDto> departmanlar)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _service.QueryDepartmanGrafiklerAsync(userId, departmanlar);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
         [HttpGet("{reportId}")]
         public async Task<IActionResult> GetReport(Guid reportId)
         {
