@@ -11,6 +11,13 @@ namespace Personelim.DTOs.Performance
         public DateTime EndDate { get; set; }
     }
 
+    public class DepartmentChartsRequestDto
+    {
+        [JsonPropertyName("businessId")] public Guid BusinessId { get; set; }
+        [JsonPropertyName("startDate")] public DateTime StartDate { get; set; }
+        [JsonPropertyName("endDate")] public DateTime EndDate { get; set; }
+    }
+
     public class AiDepartmanCalisaniDto
     {
         [JsonPropertyName("calisan_id")] public Guid CalisanId { get; set; }

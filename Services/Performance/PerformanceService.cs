@@ -371,19 +371,116 @@ namespace Personelim.Services.Performance
             }
         }
 
-        public async Task<ServiceResponse<JsonElement>> QueryDepartmanGrafiklerAsync(Guid currentUserId, List<AiDepartmanIstegiDto> departmanlar)
+        public async Task<ServiceResponse<JsonElement>> QueryDepartmentChartsAsync(Guid currentUserId, DepartmentChartsRequestDto request)
         {
             try
             {
-                if (departmanlar == null || departmanlar.Count == 0)
-                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["DepartmentHasNoMembers"]);
+                if (request.BusinessId == Guid.Empty)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["BusinessIdRequired"]);
 
-                var hasAnyMembership = await _context.BusinessMembers.AnyAsync(bm => bm.UserId == currentUserId && bm.IsActive)
-                                       || await _context.Businesses.AnyAsync(b => b.OwnerId == currentUserId);
-                if (!hasAnyMembership)
+                if (request.EndDate.Date < request.StartDate.Date)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["StartDateAfterEndDate"]);
+
+                var isOwner = await _context.Businesses.AnyAsync(b => b.Id == request.BusinessId && b.OwnerId == currentUserId);
+                var isMember = await _context.BusinessMembers.AnyAsync(bm => bm.BusinessId == request.BusinessId && bm.UserId == currentUserId && bm.IsActive);
+                if (!isOwner && !isMember)
                     return ServiceResponse<JsonElement>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
 
-                var resp = await _httpDepartmanGrafik.PostAsJsonAsync("", departmanlar);
+                var start = request.StartDate.Date;
+                var end = request.EndDate.Date.AddDays(1).AddTicks(-1);
+                int dayCount = (request.EndDate.Date - request.StartDate.Date).Days + 1;
+                double targetHours = dayCount * 8;
+
+                var departments = await _context.Departments
+                    .Where(d => d.BusinessId == request.BusinessId && d.IsActive)
+                    .Select(d => new { d.Id, d.Category }).ToListAsync();
+
+                if (departments.Count == 0)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["DepartmentNotFound"]);
+
+                var deptIds = departments.Select(d => d.Id).ToList();
+                var memberships = await _context.BusinessMembers
+                    .Where(bm => bm.BusinessId == request.BusinessId && bm.DepartmentId != null && deptIds.Contains(bm.DepartmentId.Value) && bm.IsActive)
+                    .Select(bm => new { bm.UserId, DepartmentId = bm.DepartmentId!.Value }).ToListAsync();
+
+                var allUserIds = memberships.Select(m => m.UserId).Distinct().ToList();
+
+                var users = await _context.Users.Where(u => allUserIds.Contains(u.Id) && u.IsActive)
+                    .Select(u => new { u.Id, u.FirstName, u.LastName }).ToListAsync();
+                var fullNameByUserId = users.ToDictionary(x => x.Id, x => $"{x.FirstName} {x.LastName}".Trim());
+
+                var allTasks = await _context.TaskItems
+                    .Where(t => t.BusinessId == request.BusinessId && allUserIds.Contains(t.AssignedToUserId) && t.StartDate <= end && t.EndDate >= start)
+                    .ToListAsync();
+                var tasksByUser = allTasks.GroupBy(t => t.AssignedToUserId).ToDictionary(g => g.Key, g => g.ToList());
+
+                var shiftSums = await _context.Shifts
+                    .Where(s => s.BusinessId == request.BusinessId && allUserIds.Contains(s.UserId) && s.StartTime >= start && s.EndTime <= end)
+                    .GroupBy(s => s.UserId).Select(g => new { UserId = g.Key, Total = g.Sum(x => (decimal?)x.TotalHours) ?? 0m }).ToListAsync();
+                var realizedHoursByUser = shiftSums.ToDictionary(x => x.UserId, x => (double)x.Total);
+
+                var leaveSums = await _context.MemberLeaves.Include(l => l.BusinessMember)
+                    .Where(l => l.BusinessMember.BusinessId == request.BusinessId && allUserIds.Contains(l.BusinessMember.UserId) && l.Status == LeaveStatus.Approved && l.StartDate <= end && l.EndDate >= start)
+                    .GroupBy(l => l.BusinessMember.UserId).Select(g => new { UserId = g.Key, Days = g.Sum(x => (int?)x.DayCount) ?? 0 }).ToListAsync();
+                var usedLeaveDaysByUser = leaveSums.ToDictionary(x => x.UserId, x => x.Days);
+
+                var previousScores = await _context.PerformanceReports
+                    .Where(r => r.BusinessId == request.BusinessId && allUserIds.Contains(r.EmployeeUserId) && r.PeriodEnd < start)
+                    .GroupBy(r => r.EmployeeUserId)
+                    .Select(g => new { UserId = g.Key, LastScore = g.OrderByDescending(r => r.PeriodEnd).Select(r => r.PerformanceScore).FirstOrDefault() })
+                    .ToListAsync();
+                var previousScoreByUser = previousScores.ToDictionary(x => x.UserId, x => x.LastScore);
+
+                var usersByDept = memberships
+                    .GroupBy(m => m.DepartmentId)
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.UserId).Distinct().ToList());
+
+                var aiPayload = new List<AiDepartmanIstegiDto>();
+                foreach (var dept in departments)
+                {
+                    usersByDept.TryGetValue(dept.Id, out var deptUserIds);
+                    deptUserIds ??= new List<Guid>();
+
+                    var calisanlar = new List<AiDepartmanCalisaniDto>();
+                    foreach (var userId in deptUserIds)
+                    {
+                        tasksByUser.TryGetValue(userId, out var empTasks);
+                        empTasks ??= new List<TaskItem>();
+                        var validTasks = empTasks.Where(IsValidTaskForAi).ToList();
+
+                        int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
+                        int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
+                        realizedHoursByUser.TryGetValue(userId, out var realizedHours);
+                        usedLeaveDaysByUser.TryGetValue(userId, out var usedLeaveDays);
+                        previousScoreByUser.TryGetValue(userId, out var prevScore);
+
+                        calisanlar.Add(new AiDepartmanCalisaniDto
+                        {
+                            CalisanId = userId,
+                            AdSoyad = fullNameByUserId.TryGetValue(userId, out var fn) ? fn : "",
+                            TamamlananGorevSayisi = completed,
+                            TamamlanamayanGorevSayisi = notCompleted,
+                            HedeflenenMesaiSaati = targetHours,
+                            GerceklesenMesaiSaati = realizedHours,
+                            KullanilanIzinGunu = usedLeaveDays,
+                            OncekiPerformansSkoru = prevScore == 0 ? null : prevScore,
+                            Gorevler = validTasks.Select(t => new AiTaskDto
+                            {
+                                Id = t.Id, GorevAdi = t.Title ?? "", ZorlukSeviyesi = t.Difficulty!, Durum = t.Status!,
+                                BaslangicTarihi = t.StartDate, BitisTarihi = t.EndDate, Aciklama = t.Description, GeriDonut = t.Thoughts
+                            }).ToList()
+                        });
+                    }
+
+                    aiPayload.Add(new AiDepartmanIstegiDto
+                    {
+                        DepartmanId = dept.Id,
+                        DepartmanAdi = dept.Category,
+                        Calisanlar = calisanlar
+                    });
+                }
+
+                var resp = await _httpDepartmanGrafik.PostAsJsonAsync("", aiPayload);
                 if (!resp.IsSuccessStatusCode)
                 {
                     var body = await resp.Content.ReadAsStringAsync();
