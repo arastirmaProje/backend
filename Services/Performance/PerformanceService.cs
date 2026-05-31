@@ -69,7 +69,7 @@ namespace Personelim.Services.Performance
                 
                 var validTasks = tasks.Where(IsValidTaskForAi).ToList();
                 int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
-                int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
+                int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Süresi Geçti", StringComparison.OrdinalIgnoreCase));
 
                 var realizedHoursDec = await _context.Shifts
                     .Where(s => s.BusinessId == requestDto.BusinessId && s.UserId == requestDto.EmployeeUserId && s.StartTime >= start && s.EndTime <= end)
@@ -235,7 +235,7 @@ namespace Personelim.Services.Performance
                     
                     var validTasks = empTasks.Where(IsValidTaskForAi).ToList();
                     int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
-                    int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
+                    int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Süresi Geçti", StringComparison.OrdinalIgnoreCase));
                     
                     realizedHoursByUser.TryGetValue(employeeUserId, out var realizedHours);
                     usedLeaveDaysByUser.TryGetValue(employeeUserId, out var usedLeaveDays);
@@ -324,7 +324,7 @@ namespace Personelim.Services.Performance
                     var validTasks = empTasks.Where(IsValidTaskForAi).ToList();
 
                     int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
-                    int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
+                    int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Süresi Geçti", StringComparison.OrdinalIgnoreCase));
                     realizedHoursByUser.TryGetValue(userId, out var realizedHours);
                     usedLeaveDaysByUser.TryGetValue(userId, out var usedLeaveDays);
 
@@ -449,7 +449,7 @@ namespace Personelim.Services.Performance
                         var validTasks = empTasks.Where(IsValidTaskForAi).ToList();
 
                         int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
-                        int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlanmadı", StringComparison.OrdinalIgnoreCase));
+                        int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Süresi Geçti", StringComparison.OrdinalIgnoreCase));
                         realizedHoursByUser.TryGetValue(userId, out var realizedHours);
                         usedLeaveDaysByUser.TryGetValue(userId, out var usedLeaveDays);
                         previousScoreByUser.TryGetValue(userId, out var prevScore);
@@ -496,7 +496,7 @@ namespace Personelim.Services.Performance
             }
         }
 
-        private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase) { "Tamamlandı", "Tamamlanmadı" };
+        private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase) { "Tamamlandı", "Kapatıldı", "Süresi Geçti", "Beklemede" };
         private static string Normalize(string? s) => (s ?? "").Trim();
         private static bool IsValidTaskForAi(TaskItem t) {
             var status = Normalize(t.Status);
