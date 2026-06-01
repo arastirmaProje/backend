@@ -123,6 +123,12 @@ builder.Services.AddHttpClient("AiDepartmanGrafik", c =>
     c.Timeout = TimeSpan.FromSeconds(120);
 });
 
+builder.Services.AddHttpClient("AiPerformansGrafik", c =>
+{
+    c.BaseAddress = new Uri("http://178.104.144.148:8000/api/performans/grafikler");
+    c.Timeout = TimeSpan.FromSeconds(60);
+});
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

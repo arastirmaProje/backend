@@ -16,5 +16,7 @@ namespace Personelim.Services.Performance
         Task<ServiceResponse<AiDepartmanRaporuDto>> QueryDepartmentAsync(Guid currentUserId, DepartmanPerformanceQueryRequestDto request);
 
         Task<ServiceResponse<JsonElement>> QueryDepartmentChartsAsync(Guid currentUserId, DepartmentChartsRequestDto request);
+
+        Task<ServiceResponse<JsonElement>> QueryEmployeeChartsAsync(Guid currentUserId, PerformanceQueryRequestDto requestDto);
     }
 }

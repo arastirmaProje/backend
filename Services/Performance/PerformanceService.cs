@@ -17,6 +17,7 @@ namespace Personelim.Services.Performance
         private readonly HttpClient _http;
         private readonly HttpClient _httpDepartman;
         private readonly HttpClient _httpDepartmanGrafik;
+        private readonly HttpClient _httpPerformansGrafik;
         private readonly IStringLocalizer<SharedResource> _localizer;
 
         public PerformanceService(AppDbContext context, IHttpClientFactory factory, IStringLocalizer<SharedResource> localizer)
@@ -26,6 +27,7 @@ namespace Personelim.Services.Performance
             _http = factory.CreateClient("AiPerformance");
             _httpDepartman = factory.CreateClient("AiDepartman");
             _httpDepartmanGrafik = factory.CreateClient("AiDepartmanGrafik");
+            _httpPerformansGrafik = factory.CreateClient("AiPerformansGrafik");
         }
 
         public async Task<ServiceResponse<AiPerformanceResponseDto>> QueryAsync(Guid currentUserId, PerformanceQueryRequestDto requestDto)
@@ -368,6 +370,86 @@ namespace Personelim.Services.Performance
             catch (Exception ex)
             {
                 return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["PerformanceReportError"], ex.Message);
+            }
+        }
+
+        public async Task<ServiceResponse<JsonElement>> QueryEmployeeChartsAsync(Guid currentUserId, PerformanceQueryRequestDto requestDto)
+        {
+            try
+            {
+                if (requestDto.BusinessId == Guid.Empty || requestDto.EmployeeUserId == Guid.Empty)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["BusinessOrUserNotFound"]);
+
+                if (requestDto.EndDate.Date < requestDto.StartDate.Date)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["StartDateAfterEndDate"]);
+
+                var requesterIsOwner = await _context.Businesses.AnyAsync(b => b.Id == requestDto.BusinessId && b.OwnerId == currentUserId);
+                var requesterIsMember = await _context.BusinessMembers.AnyAsync(bm => bm.BusinessId == requestDto.BusinessId && bm.UserId == currentUserId && bm.IsActive);
+                if (!requesterIsOwner && !requesterIsMember)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
+
+                var targetIsMember = await _context.BusinessMembers.AnyAsync(bm =>
+                    bm.UserId == requestDto.EmployeeUserId && bm.BusinessId == requestDto.BusinessId && bm.IsActive);
+                var targetIsOwner = await _context.Businesses.AnyAsync(b => b.Id == requestDto.BusinessId && b.OwnerId == requestDto.EmployeeUserId);
+                if (!targetIsMember && !targetIsOwner)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
+
+                var employee = await _context.Users.FirstOrDefaultAsync(u => u.Id == requestDto.EmployeeUserId && u.IsActive);
+                if (employee == null)
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["EmployeeNotFound"]);
+
+                var start = requestDto.StartDate.Date;
+                var end = requestDto.EndDate.Date.AddDays(1).AddTicks(-1);
+
+                var tasks = await _context.TaskItems
+                    .Where(t => t.BusinessId == requestDto.BusinessId && t.AssignedToUserId == requestDto.EmployeeUserId && t.StartDate <= end && t.EndDate >= start)
+                    .OrderByDescending(t => t.CreatedAt).ToListAsync();
+
+                var validTasks = tasks.Where(IsValidTaskForAi).ToList();
+                int completed = validTasks.Count(t => string.Equals(Normalize(t.Status), "Tamamlandı", StringComparison.OrdinalIgnoreCase));
+                int notCompleted = validTasks.Count(t => string.Equals(Normalize(t.Status), "Süresi Geçti", StringComparison.OrdinalIgnoreCase));
+
+                var realizedHoursDec = await _context.Shifts
+                    .Where(s => s.BusinessId == requestDto.BusinessId && s.UserId == requestDto.EmployeeUserId && s.StartTime >= start && s.EndTime <= end)
+                    .SumAsync(s => (decimal?)s.TotalHours) ?? 0m;
+                double realizedHours = (double)realizedHoursDec;
+
+                int dayCount = (requestDto.EndDate.Date - requestDto.StartDate.Date).Days + 1;
+                double targetHours = dayCount * 8;
+
+                int usedLeaveDays = await _context.MemberLeaves.Include(l => l.BusinessMember)
+                    .Where(l => l.BusinessMember.BusinessId == requestDto.BusinessId && l.BusinessMember.UserId == requestDto.EmployeeUserId && l.Status == LeaveStatus.Approved && l.StartDate <= end && l.EndDate >= start)
+                    .SumAsync(l => (int?)l.DayCount) ?? 0;
+
+                var aiPayload = new AiPerformanceRequestDto
+                {
+                    CalisanId = employee.Id,
+                    AdSoyad = $"{employee.FirstName} {employee.LastName}".Trim(),
+                    TamamlananGorevSayisi = completed,
+                    TamamlanamayanGorevSayisi = notCompleted,
+                    HedeflenenMesaiSaati = targetHours,
+                    GerceklesenMesaiSaati = realizedHours,
+                    KullanilanIzinGunu = usedLeaveDays,
+                    Gorevler = validTasks.Select(t => new AiTaskDto
+                    {
+                        Id = t.Id, GorevAdi = t.Title ?? "", ZorlukSeviyesi = t.Difficulty!, Durum = t.Status!,
+                        BaslangicTarihi = t.StartDate, BitisTarihi = t.EndDate, Aciklama = t.Description, GeriDonut = t.Thoughts
+                    }).ToList()
+                };
+
+                var resp = await _httpPerformansGrafik.PostAsJsonAsync("", aiPayload);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    var body = await resp.Content.ReadAsStringAsync();
+                    return ServiceResponse<JsonElement>.ErrorResult(_localizer["AiServiceError"], body);
+                }
+
+                var aiResult = await resp.Content.ReadFromJsonAsync<JsonElement>();
+                return ServiceResponse<JsonElement>.SuccessResult(aiResult);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<JsonElement>.ErrorResult(_localizer["PerformanceReportError"], ex.Message);
             }
         }
 

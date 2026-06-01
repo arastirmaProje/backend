@@ -68,6 +68,16 @@ namespace Personelim.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
+        [HttpPost("query-employee-charts")]
+        public async Task<IActionResult> QueryEmployeeCharts([FromBody] PerformanceQueryRequestDto requestDto)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _service.QueryEmployeeChartsAsync(userId, requestDto);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
         [HttpGet("{reportId}")]
         public async Task<IActionResult> GetReport(Guid reportId)
         {
