@@ -444,8 +444,9 @@ namespace Personelim.Services.Performance
                     return ServiceResponse<JsonElement>.ErrorResult(_localizer["AiServiceError"], body);
                 }
 
-                var aiResult = await resp.Content.ReadFromJsonAsync<JsonElement>();
-                return ServiceResponse<JsonElement>.SuccessResult(aiResult);
+                var raw = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(raw);
+                return ServiceResponse<JsonElement>.SuccessResult(doc.RootElement.Clone());
             }
             catch (Exception ex)
             {
@@ -569,8 +570,9 @@ namespace Personelim.Services.Performance
                     return ServiceResponse<JsonElement>.ErrorResult(_localizer["AiServiceError"], body);
                 }
 
-                var aiResult = await resp.Content.ReadFromJsonAsync<JsonElement>();
-                return ServiceResponse<JsonElement>.SuccessResult(aiResult);
+                var raw = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(raw);
+                return ServiceResponse<JsonElement>.SuccessResult(doc.RootElement.Clone());
             }
             catch (Exception ex)
             {
