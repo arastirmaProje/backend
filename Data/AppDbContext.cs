@@ -26,10 +26,49 @@ namespace Personelim.Data
         public DbSet<Department> Departments { get; set; }
         public DbSet<SlackWebhook> SlackWebhooks { get; set; }
         public DbSet<Schedule> Schedules { get; set; }
+        public DbSet<ChatConversation> ChatConversations { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<ChatConversation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.ChatType).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Title).HasMaxLength(200);
+                entity.HasIndex(e => new { e.UserId, e.IsActive });
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Business)
+                    .WithMany()
+                    .HasForeignKey(e => e.BusinessId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(e => e.Department)
+                    .WithMany()
+                    .HasForeignKey(e => e.DepartmentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<ChatMessage>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Role).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Content).IsRequired();
+                entity.Property(e => e.IslemYapildi).HasMaxLength(100);
+                entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
+
+                entity.HasOne(e => e.Conversation)
+                    .WithMany(c => c.Messages)
+                    .HasForeignKey(e => e.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
             
             modelBuilder.Entity<User>(entity =>
             {
