@@ -26,7 +26,7 @@ namespace Personelim.Services.Chat
             _httpYonetici = factory.CreateClient("AiChatYonetici");
         }
 
-        public async Task<ServiceResponse<ChatResponseDto>> SendPersonelMessageAsync(Guid currentUserId, SendChatMessageRequestDto request)
+        public async Task<ServiceResponse<ChatResponseDto>> SendPersonelMessageAsync(Guid currentUserId, string? userJwt, SendChatMessageRequestDto request)
         {
             try
             {
@@ -43,7 +43,8 @@ namespace Personelim.Services.Chat
                 {
                     KullaniciId = currentUserId,
                     Mesaj = request.Mesaj,
-                    Gecmis = gecmis
+                    Gecmis = gecmis,
+                    UserToken = userJwt
                 };
 
                 var resp = await _httpPersonel.PostAsJsonAsync("", aiBody);
@@ -73,7 +74,7 @@ namespace Personelim.Services.Chat
             }
         }
 
-        public async Task<ServiceResponse<ChatResponseDto>> SendYoneticiMessageAsync(Guid currentUserId, SendYoneticiChatRequestDto request)
+        public async Task<ServiceResponse<ChatResponseDto>> SendYoneticiMessageAsync(Guid currentUserId, string? userJwt, SendYoneticiChatRequestDto request)
         {
             try
             {
@@ -102,7 +103,8 @@ namespace Personelim.Services.Chat
                     KullaniciId = currentUserId,
                     DepartmanId = request.DepartmanId,
                     Mesaj = request.Mesaj,
-                    Gecmis = gecmis
+                    Gecmis = gecmis,
+                    UserToken = userJwt
                 };
 
                 var resp = await _httpYonetici.PostAsJsonAsync("", aiBody);

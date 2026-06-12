@@ -74,6 +74,7 @@ namespace Personelim.DTOs.Chat
         [JsonPropertyName("kullanici_id")] public Guid KullaniciId { get; set; }
         [JsonPropertyName("mesaj")] public string Mesaj { get; set; } = string.Empty;
         [JsonPropertyName("gecmis")] public List<AiChatMesajDto> Gecmis { get; set; } = new();
+        [JsonPropertyName("user_token")] public string? UserToken { get; set; }
     }
 
     public class AiYoneticiChatIstegiDto
@@ -82,6 +83,7 @@ namespace Personelim.DTOs.Chat
         [JsonPropertyName("departman_id")] public Guid? DepartmanId { get; set; }
         [JsonPropertyName("mesaj")] public string Mesaj { get; set; } = string.Empty;
         [JsonPropertyName("gecmis")] public List<AiChatMesajDto> Gecmis { get; set; } = new();
+        [JsonPropertyName("user_token")] public string? UserToken { get; set; }
     }
 
     public class AiChatYanitiDto

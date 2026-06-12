@@ -28,6 +28,7 @@ namespace Personelim.Data
         public DbSet<Schedule> Schedules { get; set; }
         public DbSet<ChatConversation> ChatConversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<DepartmentPerformanceReport> DepartmentPerformanceReports { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -67,6 +68,25 @@ namespace Personelim.Data
                 entity.HasOne(e => e.Conversation)
                     .WithMany(c => c.Messages)
                     .HasForeignKey(e => e.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<DepartmentPerformanceReport>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.DepartmanAdi).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.AiRequestJson).IsRequired();
+                entity.Property(e => e.AiResponseJson).IsRequired();
+                entity.HasIndex(e => new { e.BusinessId, e.DepartmentId, e.PeriodEnd });
+
+                entity.HasOne(e => e.Business)
+                    .WithMany()
+                    .HasForeignKey(e => e.BusinessId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Department)
+                    .WithMany()
+                    .HasForeignKey(e => e.DepartmentId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
             

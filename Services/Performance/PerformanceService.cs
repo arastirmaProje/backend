@@ -365,11 +365,90 @@ namespace Personelim.Services.Performance
                 if (aiResult == null)
                     return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["AiResponseReadError"]);
 
+                _context.DepartmentPerformanceReports.Add(new DepartmentPerformanceReport
+                {
+                    BusinessId = request.BusinessId,
+                    DepartmentId = request.DepartmentId,
+                    RequestedByUserId = currentUserId,
+                    PeriodStart = request.StartDate.Date,
+                    PeriodEnd = request.EndDate.Date,
+                    DepartmanAdi = department.Category ?? string.Empty,
+                    DepartmanSkoru = aiResult.DepartmanSkoru,
+                    ToplamCalisan = aiResult.ToplamCalisan,
+                    Summary = aiResult.RaporOzeti,
+                    DetailedReport = aiResult.DetayliRapor,
+                    AiRequestJson = JsonSerializer.Serialize(aiPayload),
+                    AiResponseJson = JsonSerializer.Serialize(aiResult)
+                });
+                await _context.SaveChangesAsync();
+
                 return ServiceResponse<AiDepartmanRaporuDto>.SuccessResult(aiResult);
             }
             catch (Exception ex)
             {
                 return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["PerformanceReportError"], ex.Message);
+            }
+        }
+
+        public async Task<ServiceResponse<List<DepartmentPerformanceReportListItemDto>>> GetDepartmentReportsAsync(Guid currentUserId, Guid businessId)
+        {
+            try
+            {
+                if (businessId == Guid.Empty)
+                    return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.ErrorResult(_localizer["BusinessIdRequired"]);
+
+                var isOwner = await _context.Businesses.AnyAsync(b => b.Id == businessId && b.OwnerId == currentUserId);
+                var isMember = await _context.BusinessMembers.AnyAsync(bm => bm.BusinessId == businessId && bm.UserId == currentUserId && bm.IsActive);
+                if (!isOwner && !isMember)
+                    return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
+
+                var list = await _context.DepartmentPerformanceReports
+                    .Where(r => r.BusinessId == businessId)
+                    .OrderByDescending(r => r.CreatedAt)
+                    .Select(r => new DepartmentPerformanceReportListItemDto
+                    {
+                        Id = r.Id,
+                        BusinessId = r.BusinessId,
+                        DepartmentId = r.DepartmentId,
+                        DepartmanAdi = r.DepartmanAdi,
+                        PeriodStart = r.PeriodStart,
+                        PeriodEnd = r.PeriodEnd,
+                        DepartmanSkoru = r.DepartmanSkoru,
+                        ToplamCalisan = r.ToplamCalisan,
+                        CreatedAt = r.CreatedAt
+                    })
+                    .ToListAsync();
+
+                return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.SuccessResult(list);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.ErrorResult(_localizer["GeneralError"], ex.Message);
+            }
+        }
+
+        public async Task<ServiceResponse<AiDepartmanRaporuDto>> GetDepartmentReportByIdAsync(Guid currentUserId, Guid reportId)
+        {
+            try
+            {
+                var report = await _context.DepartmentPerformanceReports.FirstOrDefaultAsync(r => r.Id == reportId);
+                if (report == null)
+                    return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["ReportNotFound"]);
+
+                var isOwner = await _context.Businesses.AnyAsync(b => b.Id == report.BusinessId && b.OwnerId == currentUserId);
+                var isMember = await _context.BusinessMembers.AnyAsync(bm => bm.BusinessId == report.BusinessId && bm.UserId == currentUserId && bm.IsActive);
+                if (!isOwner && !isMember)
+                    return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
+
+                var ai = JsonSerializer.Deserialize<AiDepartmanRaporuDto>(report.AiResponseJson);
+                if (ai == null)
+                    return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["SavedReportReadError"]);
+
+                return ServiceResponse<AiDepartmanRaporuDto>.SuccessResult(ai);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<AiDepartmanRaporuDto>.ErrorResult(_localizer["GeneralError"], ex.Message);
             }
         }
 

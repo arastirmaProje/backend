@@ -18,6 +18,19 @@ namespace Personelim.DTOs.Performance
         [JsonPropertyName("endDate")] public DateTime EndDate { get; set; }
     }
 
+    public class DepartmentPerformanceReportListItemDto
+    {
+        public Guid Id { get; set; }
+        public Guid BusinessId { get; set; }
+        public Guid DepartmentId { get; set; }
+        public string DepartmanAdi { get; set; } = string.Empty;
+        public DateTime PeriodStart { get; set; }
+        public DateTime PeriodEnd { get; set; }
+        public double DepartmanSkoru { get; set; }
+        public int ToplamCalisan { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
     public class AiDepartmanCalisaniDto
     {
         [JsonPropertyName("calisan_id")] public Guid CalisanId { get; set; }

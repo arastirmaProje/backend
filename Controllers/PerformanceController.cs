@@ -88,6 +88,26 @@ namespace Personelim.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
+        [HttpGet("department-reports/business/{businessId}")]
+        public async Task<IActionResult> GetDepartmentReports(Guid businessId)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _service.GetDepartmentReportsAsync(userId, businessId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("department-reports/{reportId}")]
+        public async Task<IActionResult> GetDepartmentReport(Guid reportId)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _service.GetDepartmentReportByIdAsync(userId, reportId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
         private Guid GetUserIdFromToken()
         {
             var idClaim = User.Claims.FirstOrDefault(c =>

@@ -24,7 +24,8 @@ namespace Personelim.Controllers
             var userId = GetUserIdFromToken();
             if (userId == Guid.Empty) return Unauthorized();
 
-            var result = await _service.SendPersonelMessageAsync(userId, request);
+            var userJwt = ExtractBearerToken();
+            var result = await _service.SendPersonelMessageAsync(userId, userJwt, request);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -34,8 +35,19 @@ namespace Personelim.Controllers
             var userId = GetUserIdFromToken();
             if (userId == Guid.Empty) return Unauthorized();
 
-            var result = await _service.SendYoneticiMessageAsync(userId, request);
+            var userJwt = ExtractBearerToken();
+            var result = await _service.SendYoneticiMessageAsync(userId, userJwt, request);
             return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        private string? ExtractBearerToken()
+        {
+            var auth = Request.Headers["Authorization"].ToString();
+            if (string.IsNullOrEmpty(auth)) return null;
+            const string prefix = "Bearer ";
+            return auth.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                ? auth.Substring(prefix.Length).Trim()
+                : auth.Trim();
         }
 
         [HttpGet("conversations")]
