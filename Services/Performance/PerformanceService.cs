@@ -427,6 +427,43 @@ namespace Personelim.Services.Performance
             }
         }
 
+        public async Task<ServiceResponse<List<DepartmentPerformanceReportListItemDto>>> GetReportsByDepartmentAsync(Guid currentUserId, Guid businessId, Guid departmentId)
+        {
+            try
+            {
+                if (businessId == Guid.Empty || departmentId == Guid.Empty)
+                    return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.ErrorResult(_localizer["BusinessIdRequired"]);
+
+                var isOwner = await _context.Businesses.AnyAsync(b => b.Id == businessId && b.OwnerId == currentUserId);
+                var isMember = await _context.BusinessMembers.AnyAsync(bm => bm.BusinessId == businessId && bm.UserId == currentUserId && bm.IsActive);
+                if (!isOwner && !isMember)
+                    return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.ErrorResult(_localizer["EmployeeNotActiveInBusiness"]);
+
+                var list = await _context.DepartmentPerformanceReports
+                    .Where(r => r.BusinessId == businessId && r.DepartmentId == departmentId)
+                    .OrderByDescending(r => r.PeriodEnd)
+                    .Select(r => new DepartmentPerformanceReportListItemDto
+                    {
+                        Id = r.Id,
+                        BusinessId = r.BusinessId,
+                        DepartmentId = r.DepartmentId,
+                        DepartmanAdi = r.DepartmanAdi,
+                        PeriodStart = r.PeriodStart,
+                        PeriodEnd = r.PeriodEnd,
+                        DepartmanSkoru = r.DepartmanSkoru,
+                        ToplamCalisan = r.ToplamCalisan,
+                        CreatedAt = r.CreatedAt
+                    })
+                    .ToListAsync();
+
+                return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.SuccessResult(list);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResponse<List<DepartmentPerformanceReportListItemDto>>.ErrorResult(_localizer["GeneralError"], ex.Message);
+            }
+        }
+
         public async Task<ServiceResponse<AiDepartmanRaporuDto>> GetDepartmentReportByIdAsync(Guid currentUserId, Guid reportId)
         {
             try

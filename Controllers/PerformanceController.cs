@@ -48,6 +48,16 @@ namespace Personelim.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
+        [HttpGet("business/{businessId}/department/{departmentId}")]
+        public async Task<IActionResult> GetReportsByDepartment(Guid businessId, Guid departmentId)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _service.GetReportsByDepartmentAsync(userId, businessId, departmentId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
         [HttpPost("query-department")]
         public async Task<IActionResult> QueryDepartment([FromBody] DepartmanPerformanceQueryRequestDto request)
         {
