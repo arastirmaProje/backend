@@ -107,7 +107,63 @@ namespace Personelim.Services.Business
             if (!string.IsNullOrWhiteSpace(requestDto.LocationName)) business.LocationName = requestDto.LocationName.Trim();
             if (requestDto.Latitude.HasValue) business.Latitude = requestDto.Latitude.Value;
             if (requestDto.Longitude.HasValue) business.Longitude = requestDto.Longitude.Value;
-            
+
+            if (requestDto.Offices != null)
+            {
+                var existingOffices = await _context.Businesses
+                    .Where(b => b.ParentBusinessId == business.Id && b.IsActive)
+                    .ToListAsync();
+
+                var incomingIds = requestDto.Offices
+                    .Where(o => o.Id.HasValue)
+                    .Select(o => o.Id!.Value)
+                    .ToHashSet();
+
+                foreach (var existing in existingOffices)
+                {
+                    if (!incomingIds.Contains(existing.Id))
+                    {
+                        existing.IsActive = false;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+
+                foreach (var officeDto in requestDto.Offices)
+                {
+                    if (officeDto.Id.HasValue)
+                    {
+                        var found = existingOffices.FirstOrDefault(b => b.Id == officeDto.Id.Value);
+                        if (found != null)
+                        {
+                            found.LocationName = officeDto.OfficeName;
+                            found.Latitude = officeDto.Latitude;
+                            found.Longitude = officeDto.Longitude;
+                            found.Name = $"{business.Name} - {officeDto.OfficeName}";
+                            found.UpdatedAt = DateTime.UtcNow;
+                        }
+                    }
+                    else
+                    {
+                        _context.Businesses.Add(new Personelim.Models.Business
+                        {
+                            LocationName = officeDto.OfficeName,
+                            Latitude = officeDto.Latitude,
+                            Longitude = officeDto.Longitude,
+                            Name = $"{business.Name} - {officeDto.OfficeName}",
+                            Address = business.Address,
+                            PhoneNumber = business.PhoneNumber,
+                            ProvinceId = business.ProvinceId,
+                            DistrictId = business.DistrictId,
+                            Description = business.Description,
+                            OwnerId = business.OwnerId,
+                            IsActive = true,
+                            ParentBusinessId = business.Id,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+            }
+
             if (requestDto.Image != null && requestDto.Image.Length > 0)
             {
                 try

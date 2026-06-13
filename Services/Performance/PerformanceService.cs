@@ -700,8 +700,7 @@ namespace Personelim.Services.Performance
         private static string Normalize(string? s) => (s ?? "").Trim();
         private static bool IsValidTaskForAi(TaskItem t) {
             var status = Normalize(t.Status);
-            var difficulty = Normalize(t.Difficulty);
-            return !string.IsNullOrWhiteSpace(difficulty) && AllowedStatuses.Contains(status);
+            return AllowedStatuses.Contains(status);
         }
     }
 }

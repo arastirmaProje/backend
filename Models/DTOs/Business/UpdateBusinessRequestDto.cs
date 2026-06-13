@@ -10,13 +10,18 @@ namespace Personelim.DTOs.Business
         public int? DistrictId { get; set; }
         public IFormFile? Image { get; set; }
 
-        
         public string? LocationName { get; set; }
-
-    
         public double? Latitude { get; set; }
-
-        
         public double? Longitude { get; set; }
+
+        public List<UpdateOfficeLocationDto>? Offices { get; set; }
+    }
+
+    public class UpdateOfficeLocationDto
+    {
+        public Guid? Id { get; set; }
+        public string OfficeName { get; set; } = string.Empty;
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
     }
 }

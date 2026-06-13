@@ -110,9 +110,6 @@ namespace Personelim.Services.BusinessMember
                 if (requester == null || !allowedPositions.Contains(requester.Position))
                     return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["NoPermissionUpdatePersonnel"]);
 
-                if (isSubscribed && targetRole >= requesterRole)
-                    return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["CannotEditHigherOrEqualRole"]);
-
                 if (requestDto.PositionId.HasValue)
                 {
                     if (!isSubscribed)
@@ -120,6 +117,9 @@ namespace Personelim.Services.BusinessMember
 
                     if (!JobTitles.IsValidId(requestDto.PositionId.Value))
                         return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["InvalidJobTitle"]);
+
+                    if (targetMember.UserId != currentUserId && targetRole >= requesterRole)
+                        return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["CannotEditHigherOrEqualRole"]);
 
                     if (JobTitles.GetRoleById(requestDto.PositionId.Value) >= requesterRole)
                         return ServiceResponse<BusinessMemberResponseDto>.ErrorResult(_localizer["CannotAssignHigherRole"]);
