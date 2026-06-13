@@ -161,10 +161,18 @@ namespace Personelim.Services.Chat
             var realResult = await _dispatcher.DispatchAsync(aiResult.IslemYapildi, aiResult.Veri.Value, ctx);
             var realJson = JsonSerializer.SerializeToElement(realResult);
 
-            // Eğer dispatcher hata döndürdüyse yanit'ı override et
+            // Hata varsa yanit'ı override et
             if (realJson.ValueKind == JsonValueKind.Object && realJson.TryGetProperty("hata", out var hataProp))
             {
                 aiResult.Yanit = $"İşlem yapılamadı: {hataProp.GetString()}";
+            }
+            // Başarılıysa, varsa rapor_ozeti'ni kullanıcıya yanit olarak göster
+            // (AI'nın stub-tabanlı yanit'ı çelişki yaratıyor, gerçek özetle değiştir)
+            else if (realJson.ValueKind == JsonValueKind.Object && realJson.TryGetProperty("rapor_ozeti", out var ozetProp))
+            {
+                var ozet = ozetProp.GetString();
+                if (!string.IsNullOrWhiteSpace(ozet))
+                    aiResult.Yanit = ozet;
             }
 
             aiResult.Veri = realJson;
