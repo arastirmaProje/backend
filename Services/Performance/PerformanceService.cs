@@ -696,11 +696,12 @@ namespace Personelim.Services.Performance
             }
         }
 
-        private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase) { "Tamamlandı", "Kapatıldı", "Süresi Geçti", "Beklemede" };
+        private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase) { "Tamamlandı", "Kapatıldı", "Süresi Geçti" };
         private static string Normalize(string? s) => (s ?? "").Trim();
         private static bool IsValidTaskForAi(TaskItem t) {
             var status = Normalize(t.Status);
-            return AllowedStatuses.Contains(status);
+            var difficulty = Normalize(t.Difficulty);
+            return !string.IsNullOrWhiteSpace(difficulty) && AllowedStatuses.Contains(status);
         }
     }
 }
