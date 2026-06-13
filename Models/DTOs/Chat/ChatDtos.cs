@@ -72,6 +72,7 @@ namespace Personelim.DTOs.Chat
     public class AiPersonelChatIstegiDto
     {
         [JsonPropertyName("kullanici_id")] public Guid KullaniciId { get; set; }
+        [JsonPropertyName("business_id")] public Guid? BusinessId { get; set; }
         [JsonPropertyName("mesaj")] public string Mesaj { get; set; } = string.Empty;
         [JsonPropertyName("gecmis")] public List<AiChatMesajDto> Gecmis { get; set; } = new();
         [JsonPropertyName("user_token")] public string? UserToken { get; set; }
@@ -80,6 +81,7 @@ namespace Personelim.DTOs.Chat
     public class AiYoneticiChatIstegiDto
     {
         [JsonPropertyName("kullanici_id")] public Guid KullaniciId { get; set; }
+        [JsonPropertyName("business_id")] public Guid BusinessId { get; set; }
         [JsonPropertyName("departman_id")] public Guid? DepartmanId { get; set; }
         [JsonPropertyName("mesaj")] public string Mesaj { get; set; } = string.Empty;
         [JsonPropertyName("gecmis")] public List<AiChatMesajDto> Gecmis { get; set; } = new();
@@ -91,5 +93,34 @@ namespace Personelim.DTOs.Chat
         [JsonPropertyName("yanit")] public string Yanit { get; set; } = string.Empty;
         [JsonPropertyName("islem_yapildi")] public string? IslemYapildi { get; set; }
         [JsonPropertyName("veri")] public JsonElement? Veri { get; set; }
+    }
+
+    // ── Round-trip pattern (Method C) ───────────────────────────────────────
+    // AI iki tip cevap döndürebilir:
+    //   - type="text": düz cevap (tool yok)
+    //   - type="function_call": Gemini bir tool çağırmak istiyor
+
+    public class AiChatInitialResponseDto
+    {
+        [JsonPropertyName("type")] public string Type { get; set; } = "text";
+        [JsonPropertyName("yanit")] public string? Yanit { get; set; }
+        [JsonPropertyName("function_name")] public string? FunctionName { get; set; }
+        [JsonPropertyName("arguments")] public JsonElement? Arguments { get; set; }
+    }
+
+    public class AiFinalizeRequestDto
+    {
+        [JsonPropertyName("kullanici_id")] public Guid KullaniciId { get; set; }
+        [JsonPropertyName("business_id")] public Guid? BusinessId { get; set; }
+        [JsonPropertyName("departman_id")] public Guid? DepartmanId { get; set; }
+        [JsonPropertyName("mesaj")] public string Mesaj { get; set; } = string.Empty;
+        [JsonPropertyName("gecmis")] public List<AiChatMesajDto> Gecmis { get; set; } = new();
+        [JsonPropertyName("function_name")] public string FunctionName { get; set; } = string.Empty;
+        [JsonPropertyName("function_result")] public JsonElement FunctionResult { get; set; }
+    }
+
+    public class AiFinalizeResponseDto
+    {
+        [JsonPropertyName("yanit")] public string Yanit { get; set; } = string.Empty;
     }
 }

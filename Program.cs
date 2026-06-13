@@ -105,6 +105,7 @@ builder.Services.AddScoped<ISlackWebhookService, SlackWebhookService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<Personelim.Services.Performance.IPerformanceService, Personelim.Services.Performance.PerformanceService>();
 builder.Services.AddScoped<Personelim.Services.Chat.IChatService, Personelim.Services.Chat.ChatService>();
+builder.Services.AddScoped<Personelim.Services.Chat.IChatToolDispatcher, Personelim.Services.Chat.ChatToolDispatcher>();
 
 builder.Services.AddHttpClient("AiPerformance", c =>
 {
@@ -141,6 +142,7 @@ builder.Services.AddHttpClient("AiChatYonetici", c =>
     c.BaseAddress = new Uri("http://ai-api:8000/api/chat/yonetici");
     c.Timeout = TimeSpan.FromSeconds(60);
 });
+
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

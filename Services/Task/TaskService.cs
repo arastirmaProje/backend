@@ -13,6 +13,20 @@ namespace Personelim.Services.Task
 {
     public class TaskService : ITaskService
     {
+        private static readonly Dictionary<string, string> StatusMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["DONE"]         = "Tamamlandı",
+            ["COMPLETED"]    = "Tamamlandı",
+            ["TAMAMLANDI"]   = "Tamamlandı",
+            ["CLOSED"]       = "Kapatıldı",
+            ["KAPATILDI"]    = "Kapatıldı",
+            ["OVERDUE"]      = "Süresi Geçti",
+            ["SURESI_GECTI"] = "Süresi Geçti",
+            ["SÜRESI GEÇTI"] = "Süresi Geçti",
+            ["PENDING"]      = "Beklemede",
+            ["BEKLEMEDE"]    = "Beklemede",
+        };
+
         private readonly AppDbContext _context;
         private readonly IStringLocalizer<SharedResource> _localizer;
         private readonly ISlackService _slackService;
@@ -148,7 +162,11 @@ namespace Personelim.Services.Task
                 
                 if (task == null) return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["TaskNotFound"]);
 
-                task.Status = requestDto.Status;
+                var rawStatus = (requestDto.Status ?? "").Trim();
+                if (!StatusMap.TryGetValue(rawStatus, out var canonicalStatus))
+                    return ServiceResponse<TaskResponseDto>.ErrorResult(_localizer["GeneralError"], $"Geçersiz status: {rawStatus}");
+
+                task.Status = canonicalStatus;
                 task.Difficulty = requestDto.Difficulty?.ToLowerInvariant();
                 
                 if (!string.IsNullOrEmpty(requestDto.Thoughts)) task.Thoughts = requestDto.Thoughts;

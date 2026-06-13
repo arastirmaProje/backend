@@ -16,12 +16,14 @@ namespace Personelim.Services.Chat
         private readonly AppDbContext _context;
         private readonly HttpClient _httpPersonel;
         private readonly HttpClient _httpYonetici;
+        private readonly IChatToolDispatcher _dispatcher;
         private readonly IStringLocalizer<SharedResource> _localizer;
 
-        public ChatService(AppDbContext context, IHttpClientFactory factory, IStringLocalizer<SharedResource> localizer)
+        public ChatService(AppDbContext context, IHttpClientFactory factory, IChatToolDispatcher dispatcher, IStringLocalizer<SharedResource> localizer)
         {
             _context = context;
             _localizer = localizer;
+            _dispatcher = dispatcher;
             _httpPersonel = factory.CreateClient("AiChatPersonel");
             _httpYonetici = factory.CreateClient("AiChatYonetici");
         }
@@ -38,10 +40,12 @@ namespace Personelim.Services.Chat
                     return ServiceResponse<ChatResponseDto>.ErrorResult(_localizer["UnauthorizedAction"]);
 
                 var gecmis = await BuildHistoryAsync(conversation.Id);
+                var businessId = conversation.BusinessId ?? request.BusinessId;
 
                 var aiBody = new AiPersonelChatIstegiDto
                 {
                     KullaniciId = currentUserId,
+                    BusinessId = businessId,
                     Mesaj = request.Mesaj,
                     Gecmis = gecmis,
                     UserToken = userJwt
@@ -57,6 +61,10 @@ namespace Personelim.Services.Chat
                 var aiResult = await resp.Content.ReadFromJsonAsync<AiChatYanitiDto>();
                 if (aiResult == null)
                     return ServiceResponse<ChatResponseDto>.ErrorResult(_localizer["AiResponseReadError"]);
+
+                // ★ Hibrit: AI tool çağırdıysa Personelim'de gerçek çağrı yap
+                var ctx = new ChatToolContext { UserId = currentUserId, BusinessId = businessId, DepartmanId = null };
+                aiResult = await ApplyHybridDispatchAsync(aiResult, ctx);
 
                 await PersistTurnAsync(conversation, request.Mesaj, aiResult);
 
@@ -101,6 +109,7 @@ namespace Personelim.Services.Chat
                 var aiBody = new AiYoneticiChatIstegiDto
                 {
                     KullaniciId = currentUserId,
+                    BusinessId = request.BusinessId,
                     DepartmanId = request.DepartmanId,
                     Mesaj = request.Mesaj,
                     Gecmis = gecmis,
@@ -118,6 +127,10 @@ namespace Personelim.Services.Chat
                 if (aiResult == null)
                     return ServiceResponse<ChatResponseDto>.ErrorResult(_localizer["AiResponseReadError"]);
 
+                // ★ Hibrit: AI tool çağırdıysa Personelim'de gerçek çağrı yap
+                var ctx = new ChatToolContext { UserId = currentUserId, BusinessId = request.BusinessId, DepartmanId = request.DepartmanId };
+                aiResult = await ApplyHybridDispatchAsync(aiResult, ctx);
+
                 await PersistTurnAsync(conversation, request.Mesaj, aiResult);
 
                 return ServiceResponse<ChatResponseDto>.SuccessResult(new ChatResponseDto
@@ -132,6 +145,30 @@ namespace Personelim.Services.Chat
             {
                 return ServiceResponse<ChatResponseDto>.ErrorResult(_localizer["GeneralError"], ex.Message);
             }
+        }
+
+        // ── Hibrit dispatch ─────────────────────────────────────────────────
+        // AI stub tool çağırdıysa, Personelim'de gerçek service'i çağırıp
+        // stub veriyi gerçek sonuçla değiştirir. AI'nın doğal dil yanit'ı
+        // genelde doğru kalır (stub args'ları doğru aktarıyor); fail durumunda
+        // yanit override edilir.
+
+        private async System.Threading.Tasks.Task<AiChatYanitiDto> ApplyHybridDispatchAsync(AiChatYanitiDto aiResult, ChatToolContext ctx)
+        {
+            if (string.IsNullOrEmpty(aiResult.IslemYapildi) || !aiResult.Veri.HasValue)
+                return aiResult;
+
+            var realResult = await _dispatcher.DispatchAsync(aiResult.IslemYapildi, aiResult.Veri.Value, ctx);
+            var realJson = JsonSerializer.SerializeToElement(realResult);
+
+            // Eğer dispatcher hata döndürdüyse yanit'ı override et
+            if (realJson.ValueKind == JsonValueKind.Object && realJson.TryGetProperty("hata", out var hataProp))
+            {
+                aiResult.Yanit = $"İşlem yapılamadı: {hataProp.GetString()}";
+            }
+
+            aiResult.Veri = realJson;
+            return aiResult;
         }
 
         public async Task<ServiceResponse<List<ConversationListItemDto>>> GetConversationsAsync(Guid currentUserId)
