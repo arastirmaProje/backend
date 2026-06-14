@@ -40,7 +40,7 @@ namespace Personelim.Services.Invitation
                 if (inviter == null)
                     return ServiceResponse<InvitationResponseDto>.ErrorResult(_localizer["UserNotFound"]);
 
-                var targetUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == requestDto.Email.ToLower());
+                var targetUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == requestDto.Email.ToLower() && u.IsActive);
                 
                 bool isNewUser = false;
                 string generatedPassword = null; 

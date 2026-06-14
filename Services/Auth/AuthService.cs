@@ -43,7 +43,7 @@ namespace Personelim.Services.Auth
             try
             {
                 var emailExists = await _context.Users
-                    .AnyAsync(u => u.Email == requestDto.Email.ToLower());
+                    .AnyAsync(u => u.Email == requestDto.Email.ToLower() && u.IsActive);
                 if (emailExists)
                 {
                     return ServiceResponse<AuthResponseDto>.ErrorResult(_localizer["EmailAlreadyExists"]);
@@ -91,9 +91,9 @@ namespace Personelim.Services.Auth
             try
             {
                 var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == requestDto.Email.ToLower());
-                
-                if (user == null || !user.IsActive)
+                    .FirstOrDefaultAsync(u => u.Email == requestDto.Email.ToLower() && u.IsActive);
+
+                if (user == null)
                 {
                     return ServiceResponse<AuthResponseDto>.ErrorResult(_localizer["InvalidCredentials"]);
                 }

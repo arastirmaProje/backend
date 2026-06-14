@@ -80,7 +80,7 @@ namespace Personelim.Services.Auth
 
                 if (!string.IsNullOrWhiteSpace(requestDto.Email) && requestDto.Email.ToLower() != user.Email)
                 {
-                    if (await _context.Users.AnyAsync(u => u.Email == requestDto.Email.ToLower() && u.Id != userId))
+                    if (await _context.Users.AnyAsync(u => u.Email == requestDto.Email.ToLower() && u.Id != userId && u.IsActive))
                         return ServiceResponse<UserProfileResponseDto>.ErrorResult(_localizer["EmailAlreadyInUse"]);
                     
                     user.Email = requestDto.Email.ToLower();
